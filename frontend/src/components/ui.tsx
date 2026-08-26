@@ -27,7 +27,7 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
         <br />
         <span className="muted">{invoice.shopper_phone}</span>
         <br />
-        <span className="muted">PO {invoice.purchase_order_number}</span>
+        <span className="muted">{invoice.purchase_order_number}</span>
       </p>
       <table>
         <thead>

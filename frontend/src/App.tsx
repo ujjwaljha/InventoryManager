@@ -50,9 +50,7 @@ function ShopShell() {
           <NavLink to="/shop">Shop</NavLink>
           <NavLink to="/shop/order">Order{count ? ` (${count})` : ""}</NavLink>
           <NavLink to="/shop/invoices">Invoices</NavLink>
-          <NavLink to="/" className="btn ghost">
-            Operator
-          </NavLink>
+          <NavLink to="/">Operator till</NavLink>
         </div>
         <div className="muted">{shopper ? shopper.name : "Guest"}</div>
       </header>

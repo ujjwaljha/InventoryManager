@@ -393,8 +393,8 @@ th {
   .bottom-nav {
     display: none;
   }
-  .desktop-only {
-    display: flex;
+  .side > div > .topbar {
+    display: none;
   }
   .side {
     grid-template-columns: 220px 1fr;
