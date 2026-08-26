@@ -1,0 +1,15 @@
+data/*.db
+data/*.db-wal
+data/*.db-shm
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.egg-info/
+.DS_Store
+.coverage
+htmlcov/

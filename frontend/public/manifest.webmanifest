@@ -1,0 +1,9 @@
+{
+  "name": "The Corner Shop",
+  "short_name": "Corner Shop",
+  "start_url": "/shop",
+  "display": "standalone",
+  "background_color": "#f3eadc",
+  "theme_color": "#1e4d3a",
+  "icons": []
+}
