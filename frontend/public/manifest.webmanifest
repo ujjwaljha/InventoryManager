@@ -1,6 +1,6 @@
 {
-  "name": "The Corner Shop",
-  "short_name": "Corner Shop",
+  "name": "Warung Pojok",
+  "short_name": "Warung",
   "start_url": "/shop",
   "display": "standalone",
   "background_color": "#f3eadc",

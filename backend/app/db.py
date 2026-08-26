@@ -45,4 +45,20 @@ def init_db(engine: Engine) -> None:
     Base.metadata.create_all(engine)
     with engine.connect() as conn:
         conn.execute(text("PRAGMA foreign_keys=ON"))
+        _add_column_if_missing(conn, "shop_settings", "currency_code", "TEXT NOT NULL DEFAULT 'IDR'")
+        _add_column_if_missing(conn, "categories", "name_id", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "locations", "name_id", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "items", "name_id", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "items", "description_id", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "purchase_order_lines", "name_id", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "invoice_lines", "name_id", "TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            text("UPDATE shop_settings SET currency_symbol = 'Rp', currency_code = 'IDR' WHERE id = 1")
+        )
         conn.commit()
+
+
+def _add_column_if_missing(conn, table: str, column: str, ddl: str) -> None:
+    cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+    if column not in cols:
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))

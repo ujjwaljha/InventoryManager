@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { LanguageSwitch, useI18n } from "./i18n";
 import { api } from "./api";
 import { OpNav, ShopNav } from "./components/ui";
 import { OpDashboard, OpInvoices, OpItems, OpOrders } from "./pages/OpPages";
@@ -7,13 +7,14 @@ import { OpInvoiceDetail, OpItemDetail, OpNewItem, OpSettings } from "./pages/Op
 import { ShopInvoiceDetail, ShopInvoices } from "./pages/ShopInvoicePages";
 import { ShopCart, ShopHome } from "./pages/ShopPages";
 import type { PurchaseOrder, Shopper } from "./types";
+import { useEffect, useState } from "react";
 
 function Brand({ to, kicker }: { to: string; kicker: string }) {
   return (
     <Link to={to} className="brand">
-      <span className="mark">C</span>
+      <span className="mark">W</span>
       <span>
-        The Corner Shop
+        Warung Pojok
         <div className="muted" style={{ fontFamily: "var(--sans)", fontSize: "0.78rem", fontWeight: 400 }}>
           {kicker}
         </div>
@@ -23,6 +24,7 @@ function Brand({ to, kicker }: { to: string; kicker: string }) {
 }
 
 function ShopShell() {
+  const { t } = useI18n();
   const [shopper, setShopper] = useState<Shopper | null>(null);
   const [count, setCount] = useState(0);
 
@@ -45,14 +47,20 @@ function ShopShell() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Brand to="/shop" kicker="Shop floor" />
+        <Brand to="/shop" kicker={t("shopFloor")} />
         <div className="row desktop-only">
-          <NavLink to="/shop">Shop</NavLink>
-          <NavLink to="/shop/order">Order{count ? ` (${count})` : ""}</NavLink>
-          <NavLink to="/shop/invoices">Invoices</NavLink>
-          <NavLink to="/">Operator till</NavLink>
+          <NavLink to="/shop">{t("shop")}</NavLink>
+          <NavLink to="/shop/order">
+            {t("order")}
+            {count ? ` (${count})` : ""}
+          </NavLink>
+          <NavLink to="/shop/invoices">{t("invoices")}</NavLink>
+          <NavLink to="/">{t("operatorTill")}</NavLink>
         </div>
-        <div className="muted">{shopper ? shopper.name : "Guest"}</div>
+        <div className="row" style={{ gap: 10 }}>
+          <LanguageSwitch />
+          <div className="muted">{shopper ? shopper.name : t("guest")}</div>
+        </div>
       </header>
       <Routes>
         <Route
@@ -72,37 +80,44 @@ function ShopShell() {
 }
 
 function OpShell() {
+  const { t } = useI18n();
   const loc = useLocation();
   const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
   return (
     <div className="app-shell side">
       <aside className="sidebar desktop-only">
-        <Brand to="/" kicker="Operator till" />
+        <Brand to="/" kicker={t("operatorTill")} />
         <NavLink to="/" end className={linkClass}>
-          Home
+          {t("home")}
         </NavLink>
         <NavLink to="/items" className={linkClass}>
-          Items
+          {t("items")}
         </NavLink>
         <NavLink to="/orders" className={linkClass}>
-          Orders
+          {t("orders")}
         </NavLink>
         <NavLink to="/invoices" className={linkClass}>
-          Invoices
+          {t("invoices")}
         </NavLink>
         <NavLink to="/settings" className={linkClass}>
-          Settings
+          {t("settings")}
         </NavLink>
         <NavLink to="/shop" className="btn ghost" style={{ marginTop: 12, textAlign: "center" }}>
-          Open shop
+          {t("openShop")}
         </NavLink>
+        <div style={{ marginTop: 12 }}>
+          <LanguageSwitch />
+        </div>
       </aside>
       <div>
         <header className="topbar">
-          <Brand to="/" kicker="Operator till" />
-          <NavLink to="/shop" className="btn ghost">
-            Open shop
-          </NavLink>
+          <Brand to="/" kicker={t("operatorTill")} />
+          <div className="row">
+            <LanguageSwitch />
+            <NavLink to="/shop" className="btn ghost">
+              {t("openShop")}
+            </NavLink>
+          </div>
         </header>
         <Routes>
           <Route path="/" element={<OpDashboard />} />

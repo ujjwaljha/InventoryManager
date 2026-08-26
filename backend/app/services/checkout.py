@@ -34,11 +34,12 @@ def get_settings(db: Session) -> ShopSettings:
     if settings is None:
         settings = ShopSettings(
             id=1,
-            name="The Corner Shop",
-            address="12 Market Lane",
-            phone="",
+            name="Warung Pojok",
+            address="Jl. Malioboro No. 12, Yogyakarta",
+            phone="+62 274-555-0142",
             tax_rate_bps=0,
-            currency_symbol="₹",
+            currency_symbol="Rp",
+            currency_code="IDR",
             invoice_prefix="INV",
             next_invoice_seq=1,
             po_prefix="PO",
@@ -46,6 +47,9 @@ def get_settings(db: Session) -> ShopSettings:
         )
         db.add(settings)
         db.flush()
+        return settings
+    settings.currency_symbol = "Rp"
+    settings.currency_code = "IDR"
     return settings
 
 
@@ -127,6 +131,7 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
                     "item_id": item.id,
                     "sku": item.sku,
                     "name": item.name,
+                    "name_id": item.name_id or item.name,
                     "requested": quantity,
                     "available": item.quantity,
                 }
@@ -141,6 +146,7 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
                 quantity=quantity,
                 sku=item.sku,
                 name=item.name,
+                name_id=item.name_id or item.name,
                 unit_price_cents=item.unit_price_cents,
             )
         )
@@ -148,6 +154,7 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
         line.quantity = quantity
         line.sku = item.sku
         line.name = item.name
+        line.name_id = item.name_id or item.name
         line.unit_price_cents = item.unit_price_cents
     po.updated_at = utcnow()
     db.flush()
@@ -200,6 +207,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
                     "item_id": line.item_id,
                     "sku": line.sku,
                     "name": line.name,
+                    "name_id": line.name_id or line.name,
                     "requested": line.quantity,
                     "available": 0,
                 }
@@ -212,6 +220,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
                     "item_id": item.id,
                     "sku": item.sku,
                     "name": item.name,
+                    "name_id": item.name_id or item.name,
                     "requested": line.quantity,
                     "available": item.quantity,
                 }
@@ -225,6 +234,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
         item = live_items[line.item_id]
         line.sku = item.sku
         line.name = item.name
+        line.name_id = item.name_id or item.name
         line.unit_price_cents = item.unit_price_cents
         mov = apply_movement(
             db,
@@ -251,7 +261,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
         shop_name=settings.name,
         shop_address=settings.address,
         shop_phone=settings.phone,
-        currency_symbol=settings.currency_symbol,
+        currency_symbol="Rp",
         issued_at=now,
     )
     db.add(invoice)
@@ -263,6 +273,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
                 invoice_id=invoice.id,
                 sku=line.sku,
                 name=line.name,
+                name_id=line.name_id or line.name,
                 quantity=line.quantity,
                 unit_price_cents=line.unit_price_cents,
                 line_total_cents=line_total(line.quantity, line.unit_price_cents),

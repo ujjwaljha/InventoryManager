@@ -2,10 +2,12 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { InvoiceSheet } from "../components/ui";
-import { money, when } from "../money";
+import { type MsgKey, useI18n } from "../i18n";
+import { centsFromRupiah, rupiahFromCents, unitLabel, when } from "../money";
 import type { Invoice, Item, Movement, Settings } from "../types";
 
 export function OpItemDetail() {
+  const { t, pick, locale } = useI18n();
   const { id } = useParams();
   const [item, setItem] = useState<Item | null>(null);
   const [moves, setMoves] = useState<Movement[]>([]);
@@ -34,7 +36,7 @@ export function OpItemDetail() {
       setReason("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Movement failed");
+      setError(e instanceof Error ? e.message : t("movementFailed"));
     }
   }
 
@@ -46,10 +48,12 @@ export function OpItemDetail() {
       method: "PATCH",
       body: JSON.stringify({
         name: fd.get("name"),
+        name_id: fd.get("name_id"),
         sku: fd.get("sku"),
         description: fd.get("description"),
-        unit_price_cents: Math.round(Number(fd.get("price")) * 100),
-        unit_cost_cents: Math.round(Number(fd.get("cost")) * 100),
+        description_id: fd.get("description_id"),
+        unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
+        unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
         reorder_point: Number(fd.get("reorder")),
         notes: fd.get("notes"),
       }),
@@ -57,94 +61,102 @@ export function OpItemDetail() {
     await load();
   }
 
-  if (!item) return <p className="muted">Loading…</p>;
+  if (!item) return <p className="muted">{t("loading")}</p>;
 
   return (
     <div className="grid">
-      <Link to="/items">← Items</Link>
+      <Link to="/items">{t("backItems")}</Link>
       {error && <div className="banner">{error}</div>}
       <div className="card">
         <div className="sku">{item.sku}</div>
-        <h2 style={{ margin: "4px 0" }}>{item.name}</h2>
+        <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
         <p className="price" style={{ margin: 0 }}>
-          On hand: {item.quantity} {item.unit}
+          {t("onHand", { qty: item.quantity, unit: unitLabel(item.unit, locale) })}
         </p>
-        {item.low_stock && <div className="stock low">Below reorder point ({item.reorder_point})</div>}
+        {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
       </div>
       <form className="card form-grid" onSubmit={save}>
-        <h3 style={{ margin: 0 }}>Details</h3>
+        <h3 style={{ margin: 0 }}>{t("details")}</h3>
         <label>
-          Name
+          {t("nameEn")}
           <input name="name" defaultValue={item.name} />
         </label>
         <label>
-          SKU
+          {t("nameId")}
+          <input name="name_id" defaultValue={item.name_id || item.name} />
+        </label>
+        <label>
+          {t("sku")}
           <input name="sku" defaultValue={item.sku} />
         </label>
         <label>
-          Description
+          {t("descriptionEn")}
           <textarea name="description" defaultValue={item.description} />
         </label>
         <label>
-          Sell price
-          <input name="price" type="number" step="0.01" defaultValue={(item.unit_price_cents / 100).toFixed(2)} />
+          {t("descriptionId")}
+          <textarea name="description_id" defaultValue={item.description_id || item.description} />
         </label>
         <label>
-          Cost
-          <input name="cost" type="number" step="0.01" defaultValue={(item.unit_cost_cents / 100).toFixed(2)} />
+          {t("sellPrice")}
+          <input name="price" type="number" step="1" defaultValue={rupiahFromCents(item.unit_price_cents)} />
         </label>
         <label>
-          Reorder point
+          {t("cost")}
+          <input name="cost" type="number" step="1" defaultValue={rupiahFromCents(item.unit_cost_cents)} />
+        </label>
+        <label>
+          {t("reorderPoint")}
           <input name="reorder" type="number" defaultValue={item.reorder_point} />
         </label>
         <label>
-          Notes
+          {t("notes")}
           <input name="notes" defaultValue={item.notes} />
         </label>
         <button className="btn" type="submit">
-          Save
+          {t("save")}
         </button>
       </form>
       <div className="card form-grid">
-        <h3 style={{ margin: 0 }}>Stock</h3>
-        <p className="muted">Sales go through Place order. Use these for deliveries, counts, and shrinkage.</p>
+        <h3 style={{ margin: 0 }}>{t("stock")}</h3>
+        <p className="muted">{t("stockHint")}</p>
         <label>
-          Quantity
+          {t("quantity")}
           <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
         </label>
         <label>
-          Reason
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Supplier delivery, count, breakage…" />
+          {t("reason")}
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("reasonPlaceholder")} />
         </label>
         <div className="row">
           <button className="btn" type="button" onClick={() => move("in")}>
-            Receive in
+            {t("receiveIn")}
           </button>
           <button className="btn ghost" type="button" onClick={() => move("adjust")}>
-            Set count
+            {t("setCount")}
           </button>
           <button className="btn warn" type="button" onClick={() => move("out")}>
-            Shrinkage
+            {t("shrinkage")}
           </button>
         </div>
       </div>
       <div className="card">
-        <h3>History</h3>
+        <h3>{t("history")}</h3>
         <table>
           <thead>
             <tr>
-              <th>When</th>
-              <th>Kind</th>
-              <th>Delta</th>
-              <th>After</th>
-              <th>Reason</th>
+              <th>{t("when")}</th>
+              <th>{t("kind")}</th>
+              <th>{t("delta")}</th>
+              <th>{t("after")}</th>
+              <th>{t("reason")}</th>
             </tr>
           </thead>
           <tbody>
             {moves.map((m) => (
               <tr key={m.id}>
-                <td>{when(m.created_at)}</td>
-                <td>{m.kind}</td>
+                <td>{when(m.created_at, locale)}</td>
+                <td>{t(`kind_${m.kind}` as MsgKey)}</td>
                 <td>{m.quantity_delta}</td>
                 <td>{m.quantity_after}</td>
                 <td className="muted">{m.reason}</td>
@@ -160,13 +172,14 @@ export function OpItemDetail() {
           nav("/items");
         }}
       >
-        Archive item
+        {t("archiveItem")}
       </button>
     </div>
   );
 }
 
 export function OpNewItem() {
+  const { t } = useI18n();
   const nav = useNavigate();
   const [error, setError] = useState("");
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -178,63 +191,74 @@ export function OpNewItem() {
         body: JSON.stringify({
           sku: fd.get("sku"),
           name: fd.get("name"),
+          name_id: fd.get("name_id") || fd.get("name"),
           description: fd.get("description") || "",
+          description_id: fd.get("description_id") || fd.get("description") || "",
           quantity: Number(fd.get("quantity") || 0),
           unit: fd.get("unit") || "ea",
           reorder_point: Number(fd.get("reorder") || 0),
-          unit_price_cents: Math.round(Number(fd.get("price") || 0) * 100),
-          unit_cost_cents: Math.round(Number(fd.get("cost") || 0) * 100),
+          unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
+          unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
         }),
       });
       nav(`/items/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create");
+      setError(err instanceof Error ? err.message : t("couldNotCreate"));
     }
   }
   return (
     <form className="card form-grid" onSubmit={onSubmit}>
-      <h2 style={{ margin: 0 }}>New item</h2>
+      <h2 style={{ margin: 0 }}>{t("newItem")}</h2>
       {error && <div className="banner">{error}</div>}
       <label>
-        SKU
+        {t("sku")}
         <input name="sku" required />
       </label>
       <label>
-        Name
+        {t("nameEn")}
         <input name="name" required />
       </label>
       <label>
-        Description
+        {t("nameId")}
+        <input name="name_id" />
+      </label>
+      <label>
+        {t("descriptionEn")}
         <textarea name="description" />
       </label>
       <label>
-        Opening quantity
+        {t("descriptionId")}
+        <textarea name="description_id" />
+      </label>
+      <label>
+        {t("openingQty")}
         <input name="quantity" type="number" defaultValue={0} />
       </label>
       <label>
-        Unit
-        <input name="unit" defaultValue="ea" />
+        {t("unit")}
+        <input name="unit" defaultValue="pcs" />
       </label>
       <label>
-        Sell price
-        <input name="price" type="number" step="0.01" defaultValue={0} />
+        {t("sellPrice")}
+        <input name="price" type="number" step="1" defaultValue={0} />
       </label>
       <label>
-        Cost
-        <input name="cost" type="number" step="0.01" defaultValue={0} />
+        {t("cost")}
+        <input name="cost" type="number" step="1" defaultValue={0} />
       </label>
       <label>
-        Reorder point
+        {t("reorderPoint")}
         <input name="reorder" type="number" defaultValue={0} />
       </label>
       <button className="btn" type="submit">
-        Create
+        {t("create")}
       </button>
     </form>
   );
 }
 
 export function OpInvoiceDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
@@ -244,13 +268,13 @@ export function OpInvoiceDetail() {
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, [id]);
-  if (!invoice) return <p className="muted">{error || "Loading…"}</p>;
+  if (!invoice) return <p className="muted">{error || t("loading")}</p>;
   return (
     <div className="grid">
       <div className="row no-print">
-        <Link to="/invoices">← Invoices</Link>
+        <Link to="/invoices">{t("backInvoices")}</Link>
         <button className="btn ghost" onClick={() => window.print()}>
-          Print
+          {t("print")}
         </button>
         {invoice.status === "issued" && (
           <button
@@ -260,7 +284,7 @@ export function OpInvoiceDetail() {
               await load();
             }}
           >
-            Mark paid
+            {t("markPaid")}
           </button>
         )}
         {invoice.status === "issued" && (
@@ -271,7 +295,7 @@ export function OpInvoiceDetail() {
               await load();
             }}
           >
-            Cancel order
+            {t("cancelOrder")}
           </button>
         )}
       </div>
@@ -281,6 +305,7 @@ export function OpInvoiceDetail() {
 }
 
 export function OpSettings() {
+  const { t } = useI18n();
   const [s, setS] = useState<Settings | null>(null);
   const [lan, setLan] = useState("");
   const [saved, setSaved] = useState(false);
@@ -288,7 +313,7 @@ export function OpSettings() {
     api<Settings>("/api/settings").then(setS);
     api<{ lan_host: string }>("/api/lan").then((r) => setLan(`http://${r.lan_host}:8000/shop`));
   }, []);
-  if (!s) return <p className="muted">Loading…</p>;
+  if (!s) return <p className="muted">{t("loading")}</p>;
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -298,7 +323,8 @@ export function OpSettings() {
         name: fd.get("name"),
         address: fd.get("address"),
         phone: fd.get("phone"),
-        currency_symbol: fd.get("currency_symbol"),
+        currency_symbol: "Rp",
+        currency_code: "IDR",
         tax_rate_bps: Math.round(Number(fd.get("tax") || 0) * 100),
       }),
     });
@@ -307,44 +333,44 @@ export function OpSettings() {
   }
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>Shop settings</h2>
+      <h2 style={{ margin: 0 }}>{t("shopSettings")}</h2>
       <div className="card">
-        <h3>Phone access</h3>
-        <p className="muted">On the same Wi‑Fi, open this address in the phone browser:</p>
+        <h3>{t("phoneAccess")}</h3>
+        <p className="muted">{t("phoneAccessHint")}</p>
         <b>{lan || "http://localhost:8000/shop"}</b>
       </div>
       <form className="card form-grid" onSubmit={onSubmit}>
         <label>
-          Shop name
+          {t("shopName")}
           <input name="name" defaultValue={s.name} />
         </label>
         <label>
-          Address
+          {t("address")}
           <input name="address" defaultValue={s.address} />
         </label>
         <label>
-          Phone
+          {t("phone")}
           <input name="phone" defaultValue={s.phone} />
         </label>
         <label>
-          Currency symbol
-          <input name="currency_symbol" defaultValue={s.currency_symbol} />
+          {t("currency")}
+          <input readOnly value={t("currencyValue")} />
         </label>
         <label>
-          Tax %
+          {t("taxPct")}
           <input name="tax" type="number" step="0.01" defaultValue={(s.tax_rate_bps / 100).toFixed(2)} />
         </label>
         <button className="btn" type="submit">
-          Save
+          {t("save")}
         </button>
-        {saved && <span className="muted">Saved.</span>}
+        {saved && <span className="muted">{t("saved")}</span>}
       </form>
       <div className="row">
         <a className="btn ghost" href="/api/export/items.csv">
-          Export items CSV
+          {t("exportCsv")}
         </a>
         <a className="btn ghost" href="/api/backup">
-          Download SQLite backup
+          {t("downloadBackup")}
         </a>
       </div>
     </div>

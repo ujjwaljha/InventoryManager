@@ -12,10 +12,22 @@ from app.timeutil import utcnow
 router = APIRouter(prefix="/api", tags=["catalog"])
 
 
+def _item_matches(item: Item, needle: str) -> bool:
+    fields = (
+        item.name,
+        item.name_id or "",
+        item.sku,
+        item.description or "",
+        item.description_id or "",
+        item.notes or "",
+    )
+    return any(needle in (field or "").lower() for field in fields)
+
+
 @router.get("/categories")
 def list_categories(db: Session = Depends(get_db)):
     rows = db.execute(select(Category).order_by(Category.name)).scalars()
-    return [{"id": c.id, "name": c.name} for c in rows]
+    return [{"id": c.id, "name": c.name, "name_id": c.name_id or c.name} for c in rows]
 
 
 @router.post("/categories")
@@ -33,7 +45,7 @@ def create_category(body: CategoryIn, db: Session = Depends(get_db)):
 @router.get("/locations")
 def list_locations(db: Session = Depends(get_db)):
     rows = db.execute(select(Location).order_by(Location.name)).scalars()
-    return [{"id": c.id, "name": c.name} for c in rows]
+    return [{"id": c.id, "name": c.name, "name_id": c.name_id or c.name} for c in rows]
 
 
 @router.post("/locations")
@@ -67,11 +79,7 @@ def list_items(
     items = list(db.execute(stmt).scalars())
     if q:
         needle = q.strip().lower()
-        items = [
-            i
-            for i in items
-            if needle in i.name.lower() or needle in i.sku.lower() or needle in (i.notes or "").lower()
-        ]
+        items = [i for i in items if _item_matches(i, needle)]
     if low_stock:
         items = [i for i in items if i.quantity <= i.reorder_point]
     return [item_out(i) for i in items]
@@ -86,7 +94,9 @@ def create_item(body: ItemIn, db: Session = Depends(get_db)):
     item = Item(
         sku=sku,
         name=body.name.strip(),
+        name_id=(body.name_id or body.name).strip(),
         description=body.description or "",
+        description_id=body.description_id or body.description or "",
         category_id=body.category_id,
         location_id=body.location_id,
         quantity=0,

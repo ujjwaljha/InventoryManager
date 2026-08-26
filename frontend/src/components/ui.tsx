@@ -1,8 +1,10 @@
 import { NavLink } from "react-router-dom";
+import { type MsgKey, useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
+  const { t, pick, locale } = useI18n();
   return (
     <article className="invoice-sheet">
       <header className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -14,14 +16,14 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div className="sku">Invoice</div>
+          <div className="sku">{t("invoice")}</div>
           <b>{invoice.number}</b>
-          <div className="muted">{when(invoice.issued_at)}</div>
-          <span className={`tag ${invoice.status}`}>{invoice.status}</span>
+          <div className="muted">{when(invoice.issued_at, locale)}</div>
+          <StatusTag status={invoice.status} />
         </div>
       </header>
       <p>
-        <b>Bill to</b>
+        <b>{t("billTo")}</b>
         <br />
         {invoice.shopper_name}
         <br />
@@ -32,17 +34,17 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
       <table>
         <thead>
           <tr>
-            <th>Item</th>
-            <th>Qty</th>
-            <th>Price</th>
-            <th>Amount</th>
+            <th>{t("item")}</th>
+            <th>{t("qty")}</th>
+            <th>{t("price")}</th>
+            <th>{t("amount")}</th>
           </tr>
         </thead>
         <tbody>
           {invoice.lines.map((ln) => (
             <tr key={ln.id}>
               <td>
-                <div>{ln.name}</div>
+                <div>{pick(ln.name, ln.name_id)}</div>
                 <div className="sku">{ln.sku}</div>
               </td>
               <td>{ln.quantity}</td>
@@ -53,20 +55,26 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
         </tbody>
       </table>
       <div style={{ marginTop: 16, textAlign: "right" }}>
-        <div className="muted">Subtotal {money(invoice.subtotal_cents, invoice.currency_symbol)}</div>
+        <div className="muted">
+          {t("subtotal")} {money(invoice.subtotal_cents, invoice.currency_symbol)}
+        </div>
         {invoice.tax_cents > 0 && (
           <div className="muted">
-            Tax ({(invoice.tax_bps / 100).toFixed(2)}%) {money(invoice.tax_cents, invoice.currency_symbol)}
+            {t("tax")} ({(invoice.tax_bps / 100).toFixed(2)}%) {money(invoice.tax_cents, invoice.currency_symbol)}
           </div>
         )}
-        <h2 style={{ margin: "8px 0 0" }}>Total {money(invoice.total_cents, invoice.currency_symbol)}</h2>
+        <h2 style={{ margin: "8px 0 0" }}>
+          {t("total")} {money(invoice.total_cents, invoice.currency_symbol)}
+        </h2>
       </div>
     </article>
   );
 }
 
 export function StatusTag({ status }: { status: string }) {
-  return <span className={`tag ${status}`}>{status}</span>;
+  const { t } = useI18n();
+  const key = `status_${status}` as MsgKey;
+  return <span className={`tag ${status}`}>{t(key)}</span>;
 }
 
 export function IdentifyForm({
@@ -76,6 +84,7 @@ export function IdentifyForm({
   onDone: (name: string, phone: string) => void;
   pending?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <form
       className="card form-grid"
@@ -85,49 +94,52 @@ export function IdentifyForm({
         onDone(String(fd.get("name") || ""), String(fd.get("phone") || ""));
       }}
     >
-      <h3 style={{ margin: 0 }}>Who is shopping?</h3>
+      <h3 style={{ margin: 0 }}>{t("whoShopping")}</h3>
       <p className="muted" style={{ margin: 0 }}>
-        We keep your purchase order on this phone until you place it.
+        {t("whoShoppingHint")}
       </p>
       <label>
-        Name
-        <input name="name" required placeholder="Your name" autoComplete="name" />
+        {t("name")}
+        <input name="name" required placeholder={t("yourName")} autoComplete="name" />
       </label>
       <label>
-        Phone
-        <input name="phone" required placeholder="Mobile number" inputMode="tel" autoComplete="tel" />
+        {t("phone")}
+        <input name="phone" required placeholder={t("mobileNumber")} inputMode="tel" autoComplete="tel" />
       </label>
       <button className="btn" type="submit" disabled={pending}>
-        Continue
+        {t("continue")}
       </button>
     </form>
   );
 }
 
 export function ShopNav({ count }: { count: number }) {
+  const { t } = useI18n();
   return (
     <nav className="bottom-nav">
       <NavLink to="/shop" end>
-        Shop
+        {t("shop")}
       </NavLink>
       <NavLink to="/shop/order">
-        Order{count > 0 ? <span className="badge">{count}</span> : null}
+        {t("order")}
+        {count > 0 ? <span className="badge">{count}</span> : null}
       </NavLink>
-      <NavLink to="/shop/invoices">Invoices</NavLink>
+      <NavLink to="/shop/invoices">{t("invoices")}</NavLink>
     </nav>
   );
 }
 
 export function OpNav() {
+  const { t } = useI18n();
   return (
     <nav className="bottom-nav">
       <NavLink to="/" end>
-        Home
+        {t("home")}
       </NavLink>
-      <NavLink to="/items">Items</NavLink>
-      <NavLink to="/orders">Orders</NavLink>
-      <NavLink to="/invoices">Invoices</NavLink>
-      <NavLink to="/settings">More</NavLink>
+      <NavLink to="/items">{t("items")}</NavLink>
+      <NavLink to="/orders">{t("orders")}</NavLink>
+      <NavLink to="/invoices">{t("invoices")}</NavLink>
+      <NavLink to="/settings">{t("more")}</NavLink>
     </nav>
   );
 }

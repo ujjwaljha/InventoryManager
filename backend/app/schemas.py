@@ -37,7 +37,9 @@ class LocationOut(BaseModel):
 class ItemIn(BaseModel):
     sku: str = Field(min_length=1)
     name: str = Field(min_length=1)
+    name_id: str = ""
     description: str = ""
+    description_id: str = ""
     category_id: int | None = None
     location_id: int | None = None
     quantity: int = Field(default=0, ge=0)
@@ -51,7 +53,9 @@ class ItemIn(BaseModel):
 class ItemPatch(BaseModel):
     sku: str | None = None
     name: str | None = None
+    name_id: str | None = None
     description: str | None = None
+    description_id: str | None = None
     category_id: int | None = None
     location_id: int | None = None
     unit: str | None = None
@@ -65,11 +69,15 @@ class ItemOut(BaseModel):
     id: int
     sku: str
     name: str
+    name_id: str = ""
     description: str
+    description_id: str = ""
     category_id: int | None
     category_name: str | None
+    category_name_id: str | None = None
     location_id: int | None
     location_name: str | None
+    location_name_id: str | None = None
     quantity: int
     unit: str
     reorder_point: int
@@ -93,6 +101,7 @@ class MovementOut(BaseModel):
     item_id: int
     item_sku: str | None = None
     item_name: str | None = None
+    item_name_id: str | None = None
     kind: str
     quantity_delta: int
     quantity_after: int
@@ -112,6 +121,7 @@ class PoLineOut(BaseModel):
     item_id: int
     sku: str
     name: str
+    name_id: str = ""
     quantity: int
     unit_price_cents: int
     line_total_cents: int
@@ -126,6 +136,7 @@ class InvoiceLineOut(BaseModel):
     id: int
     sku: str
     name: str
+    name_id: str = ""
     quantity: int
     unit_price_cents: int
     line_total_cents: int
@@ -148,6 +159,7 @@ class InvoiceOut(BaseModel):
     shop_address: str
     shop_phone: str
     currency_symbol: str
+    currency_code: str = "IDR"
     issued_at: str
     paid_at: str | None
     voided_at: str | None
@@ -171,6 +183,7 @@ class PurchaseOrderOut(BaseModel):
     tax_cents: int
     total_cents: int
     currency_symbol: str
+    currency_code: str = "IDR"
     lines: list[PoLineOut]
     invoice: InvoiceOut | None = None
 
@@ -188,6 +201,7 @@ class SettingsIn(BaseModel):
     phone: str | None = None
     tax_rate_bps: int | None = Field(default=None, ge=0)
     currency_symbol: str | None = None
+    currency_code: str | None = None
     invoice_prefix: str | None = None
     po_prefix: str | None = None
 
@@ -198,6 +212,7 @@ class SettingsOut(BaseModel):
     phone: str
     tax_rate_bps: int
     currency_symbol: str
+    currency_code: str = "IDR"
     invoice_prefix: str
     po_prefix: str
     next_invoice_seq: int
@@ -208,6 +223,7 @@ class Shortage(BaseModel):
     item_id: int
     sku: str
     name: str
+    name_id: str = ""
     requested: int
     available: int
 
@@ -220,6 +236,7 @@ class DashboardOut(BaseModel):
     today_order_count: int
     today_sales_cents: int
     currency_symbol: str
+    currency_code: str = "IDR"
     shop_name: str
     low_stock_items: list[ItemOut]
     recent_movements: list[MovementOut]

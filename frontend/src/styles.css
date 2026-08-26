@@ -193,8 +193,28 @@ textarea {
   background: var(--danger);
 }
 
-.btn.block {
-  width: 100%;
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.lang-switch button {
+  border: 0;
+  background: transparent;
+  padding: 6px 11px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.lang-switch button.on {
+  background: var(--forest);
+  color: #f7f3ea;
 }
 
 .icon-btn {

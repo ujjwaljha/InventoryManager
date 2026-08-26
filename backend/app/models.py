@@ -19,11 +19,12 @@ class ShopSettings(Base):
     __tablename__ = "shop_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(Text, default="The Corner Shop")
+    name: Mapped[str] = mapped_column(Text, default="Warung Pojok")
     address: Mapped[str] = mapped_column(Text, default="")
     phone: Mapped[str] = mapped_column(Text, default="")
     tax_rate_bps: Mapped[int] = mapped_column(Integer, default=0)
-    currency_symbol: Mapped[str] = mapped_column(Text, default="₹")
+    currency_symbol: Mapped[str] = mapped_column(Text, default="Rp")
+    currency_code: Mapped[str] = mapped_column(Text, default="IDR")
     invoice_prefix: Mapped[str] = mapped_column(Text, default="INV")
     next_invoice_seq: Mapped[int] = mapped_column(Integer, default=1)
     po_prefix: Mapped[str] = mapped_column(Text, default="PO")
@@ -37,6 +38,7 @@ class Category(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    name_id: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
 
     items: Mapped[list[Item]] = relationship(back_populates="category")
@@ -47,6 +49,7 @@ class Location(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    name_id: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
 
     items: Mapped[list[Item]] = relationship(back_populates="location")
@@ -58,7 +61,9 @@ class Item(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     sku: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    name_id: Mapped[str] = mapped_column(Text, default="")
     description: Mapped[str] = mapped_column(Text, default="")
+    description_id: Mapped[str] = mapped_column(Text, default="")
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"))
     location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"))
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -140,6 +145,7 @@ class PurchaseOrderLine(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     sku: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    name_id: Mapped[str] = mapped_column(Text, default="")
     unit_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
 
     purchase_order: Mapped[PurchaseOrder] = relationship(back_populates="lines")
@@ -169,7 +175,7 @@ class Invoice(Base):
     shop_name: Mapped[str] = mapped_column(Text, nullable=False)
     shop_address: Mapped[str] = mapped_column(Text, nullable=False)
     shop_phone: Mapped[str] = mapped_column(Text, nullable=False)
-    currency_symbol: Mapped[str] = mapped_column(Text, default="₹")
+    currency_symbol: Mapped[str] = mapped_column(Text, default="Rp")
     issued_at: Mapped[str] = mapped_column(Text, nullable=False)
     paid_at: Mapped[str | None] = mapped_column(Text)
     voided_at: Mapped[str | None] = mapped_column(Text)
@@ -198,6 +204,7 @@ class InvoiceLine(Base):
     )
     sku: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    name_id: Mapped[str] = mapped_column(Text, default="")
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     line_total_cents: Mapped[int] = mapped_column(Integer, nullable=False)

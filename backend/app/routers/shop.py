@@ -55,7 +55,16 @@ def catalog(q: str | None = None, category_id: int | None = None, db: Session = 
         items = [i for i in items if i.category_id == category_id]
     if q:
         needle = q.strip().lower()
-        items = [i for i in items if needle in i.name.lower() or needle in i.sku.lower() or needle in (i.notes or "").lower()]
+        items = [
+            i
+            for i in items
+            if needle in i.name.lower()
+            or needle in (i.name_id or "").lower()
+            or needle in i.sku.lower()
+            or needle in (i.description or "").lower()
+            or needle in (i.description_id or "").lower()
+            or needle in (i.notes or "").lower()
+        ]
     return [item_out(i) for i in items]
 
 

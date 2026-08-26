@@ -2,11 +2,15 @@ export type Item = {
   id: number;
   sku: string;
   name: string;
+  name_id?: string;
   description: string;
+  description_id?: string;
   category_id: number | null;
   category_name: string | null;
+  category_name_id?: string | null;
   location_id: number | null;
   location_name: string | null;
+  location_name_id?: string | null;
   quantity: number;
   unit: string;
   reorder_point: number;
@@ -31,6 +35,7 @@ export type PoLine = {
   item_id: number;
   sku: string;
   name: string;
+  name_id?: string;
   quantity: number;
   unit_price_cents: number;
   line_total_cents: number;
@@ -41,6 +46,7 @@ export type InvoiceLine = {
   id: number;
   sku: string;
   name: string;
+  name_id?: string;
   quantity: number;
   unit_price_cents: number;
   line_total_cents: number;
@@ -63,6 +69,7 @@ export type Invoice = {
   shop_address: string;
   shop_phone: string;
   currency_symbol: string;
+  currency_code?: string;
   issued_at: string;
   paid_at: string | null;
   voided_at: string | null;
@@ -86,6 +93,7 @@ export type PurchaseOrder = {
   tax_cents: number;
   total_cents: number;
   currency_symbol: string;
+  currency_code?: string;
   lines: PoLine[];
   invoice: Invoice | null;
 };
@@ -95,6 +103,7 @@ export type Movement = {
   item_id: number;
   item_sku: string | null;
   item_name: string | null;
+  item_name_id?: string | null;
   kind: string;
   quantity_delta: number;
   quantity_after: number;
@@ -112,6 +121,7 @@ export type Dashboard = {
   today_order_count: number;
   today_sales_cents: number;
   currency_symbol: string;
+  currency_code?: string;
   shop_name: string;
   low_stock_items: Item[];
   recent_movements: Movement[];
@@ -123,6 +133,7 @@ export type Settings = {
   phone: string;
   tax_rate_bps: number;
   currency_symbol: string;
+  currency_code?: string;
   invoice_prefix: string;
   po_prefix: string;
   next_invoice_seq: number;
@@ -133,6 +144,7 @@ export type Shortage = {
   item_id: number;
   sku: string;
   name: string;
+  name_id?: string;
   requested: number;
   available: number;
 };

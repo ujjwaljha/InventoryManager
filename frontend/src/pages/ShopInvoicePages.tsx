@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { InvoiceSheet, StatusTag } from "../components/ui";
+import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice } from "../types";
 
 export function ShopInvoices() {
+  const { t, locale } = useI18n();
   const [rows, setRows] = useState<Invoice[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -17,19 +19,19 @@ export function ShopInvoices() {
   if (rows.length === 0) {
     return (
       <div className="card">
-        <h2>No invoices yet</h2>
-        <p className="muted">Place a purchase order and an invoice will appear here.</p>
+        <h2>{t("noInvoices")}</h2>
+        <p className="muted">{t("noInvoicesHint")}</p>
       </div>
     );
   }
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>Your invoices</h2>
+      <h2 style={{ margin: 0 }}>{t("yourInvoices")}</h2>
       {rows.map((inv) => (
         <Link className="card row" style={{ justifyContent: "space-between" }} key={inv.id} to={`/shop/invoices/${inv.id}`}>
           <div>
             <b>{inv.number}</b>
-            <div className="muted">{when(inv.issued_at)}</div>
+            <div className="muted">{when(inv.issued_at, locale)}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <StatusTag status={inv.status} />
@@ -42,6 +44,7 @@ export function ShopInvoices() {
 }
 
 export function ShopInvoiceDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
@@ -51,13 +54,13 @@ export function ShopInvoiceDetail() {
       .catch((e) => setError(e.message));
   }, [id]);
   if (error) return <div className="banner">{error}</div>;
-  if (!invoice) return <p className="muted">Loading invoice…</p>;
+  if (!invoice) return <p className="muted">{t("loadingInvoice")}</p>;
   return (
     <div className="grid">
       <div className="row no-print">
-        <Link to="/shop/invoices">← Invoices</Link>
+        <Link to="/shop/invoices">{t("backInvoices")}</Link>
         <button className="btn ghost" onClick={() => window.print()}>
-          Print / save
+          {t("printSave")}
         </button>
       </div>
       <InvoiceSheet invoice={invoice} />

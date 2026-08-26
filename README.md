@@ -17,7 +17,9 @@ Then open:
 - Shop floor: [http://localhost:8000/shop](http://localhost:8000/shop)
 - Phone on the same Wi‑Fi: `http://<lan-ip>:8000/shop` (the address is also under Operator → Settings)
 
-The first start creates `data/inventory.db` and seeds a sample kirana catalog.
+The first start creates `data/inventory.db` and seeds a sample Indonesian grocery catalog.
+
+The shop and till support **English** and **Indonesian** (switch **EN | ID** in the header; default is Indonesian). Money is **Indonesian Rupiah (IDR)**, shown as `Rp` with no decimals (for example `Rp 78.000`).
 
 ### Development (API + Vite)
 

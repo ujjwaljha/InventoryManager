@@ -149,3 +149,27 @@ def test_mark_paid(client: TestClient):
     assert res.json()["status"] == "paid"
     cancel = client.post(f"/api/orders/{placed['id']}/cancel")
     assert cancel.status_code == 400
+
+
+def test_indonesian_rupiah_and_bilingual_catalog(client: TestClient):
+    settings = client.get("/api/settings").json()
+    assert settings["currency_symbol"] == "Rp"
+    assert settings["currency_code"] == "IDR"
+    health = client.get("/api/health").json()
+    assert health["currency_code"] == "IDR"
+    items = client.get("/api/shop/catalog").json()
+    rice = next(i for i in items if i["sku"] == "ATA-5KG")
+    assert rice["name_id"]
+    assert rice["name_id"] != rice["name"]
+    assert rice["unit_price_cents"] == 78000 * 100
+    assert rice["category_name_id"]
+    invoice = client.post("/api/shop/session", json={"name": "Sari", "phone": "081200000099"})
+    assert invoice.status_code == 200
+    client.post("/api/shop/po/lines", json={"item_id": rice["id"], "quantity": 1})
+    placed = client.post("/api/shop/po/place", json={"note": ""}).json()
+    assert placed["invoice"]["currency_symbol"] == "Rp"
+    assert placed["invoice"]["currency_code"] == "IDR"
+    assert placed["invoice"]["lines"][0]["name_id"]
+    locked = client.patch("/api/settings", json={"currency_symbol": "$", "currency_code": "USD"}).json()
+    assert locked["currency_symbol"] == "Rp"
+    assert locked["currency_code"] == "IDR"

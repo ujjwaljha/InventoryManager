@@ -25,12 +25,16 @@ def read_settings(db: Session = Depends(get_db)):
 def update_settings(body: SettingsIn, db: Session = Depends(get_db)):
     s = get_settings(db)
     data = body.model_dump(exclude_unset=True)
+    data.pop("currency_symbol", None)
+    data.pop("currency_code", None)
     for key, value in data.items():
         if value is None:
             continue
         if isinstance(value, str):
             value = value.strip()
         setattr(s, key, value)
+    s.currency_symbol = "Rp"
+    s.currency_code = "IDR"
     db.commit()
     db.refresh(s)
     return settings_out(s)
@@ -42,6 +46,8 @@ def health(db: Session = Depends(get_db)):
     return {
         "ok": True,
         "shop": s.name,
+        "currency": s.currency_symbol or "Rp",
+        "currency_code": getattr(s, "currency_code", None) or "IDR",
         "db": str(Path(db.get_bind().url.database or "")),
     }
 
@@ -72,7 +78,9 @@ def export_items(db: Session = Depends(get_db)):
         [
             "sku",
             "name",
+            "name_id",
             "description",
+            "description_id",
             "category",
             "location",
             "quantity",
@@ -88,7 +96,9 @@ def export_items(db: Session = Depends(get_db)):
             [
                 item.sku,
                 item.name,
+                item.name_id or "",
                 item.description,
+                item.description_id or "",
                 item.category.name if item.category else "",
                 item.location.name if item.location else "",
                 item.quantity,
