@@ -407,6 +407,9 @@ th {
 }
 
 @media (min-width: 860px) {
+  .desktop-only {
+    display: flex;
+  }
   .app-shell {
     padding: 28px 24px 48px;
   }
