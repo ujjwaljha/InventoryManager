@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db, raise_checkout, shopper_id_from_request
-from app.models import Invoice, PurchaseOrder, Shopper
+from app.models import Invoice, Item, PurchaseOrder, Shopper
 from app.schemas import PlaceIn, PoLineIn, SessionIn
 from app.serialize import invoice_out, item_out, po_out_with_settings
 from app.services import checkout as chk

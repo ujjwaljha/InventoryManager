@@ -276,6 +276,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
     po.placed_at = now
     po.updated_at = now
     db.flush()
+    db.expire_all()
     loaded = load_po(db, po.id)
     assert loaded is not None and loaded.invoice is not None
     return loaded, loaded.invoice
@@ -309,6 +310,7 @@ def cancel_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
     po.cancelled_at = now
     po.updated_at = now
     db.flush()
+    db.expire_all()
     loaded = load_po(db, po.id)
     assert loaded is not None
     return loaded
