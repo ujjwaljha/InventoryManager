@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet } from "../components/ui";
+import { InvoiceSheet, SharePanel } from "../components/ui";
 import { type MsgKey, useI18n } from "../i18n";
 import { centsFromRupiah, rupiahFromCents, unitLabel, when } from "../money";
 import type { Invoice, Item, Movement, Settings } from "../types";
@@ -307,11 +307,9 @@ export function OpInvoiceDetail() {
 export function OpSettings() {
   const { t } = useI18n();
   const [s, setS] = useState<Settings | null>(null);
-  const [lan, setLan] = useState("");
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     api<Settings>("/api/settings").then(setS);
-    api<{ lan_host: string }>("/api/lan").then((r) => setLan(`http://${r.lan_host}:8000/shop`));
   }, []);
   if (!s) return <p className="muted">{t("loading")}</p>;
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -334,11 +332,7 @@ export function OpSettings() {
   return (
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("shopSettings")}</h2>
-      <div className="card">
-        <h3>{t("phoneAccess")}</h3>
-        <p className="muted">{t("phoneAccessHint")}</p>
-        <b>{lan || "http://localhost:8000/shop"}</b>
-      </div>
+      <SharePanel showRestore />
       <form className="card form-grid" onSubmit={onSubmit}>
         <label>
           {t("shopName")}
@@ -368,9 +362,6 @@ export function OpSettings() {
       <div className="row">
         <a className="btn ghost" href="/api/export/items.csv">
           {t("exportCsv")}
-        </a>
-        <a className="btn ghost" href="/api/backup">
-          {t("downloadBackup")}
         </a>
       </div>
     </div>

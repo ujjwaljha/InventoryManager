@@ -173,3 +173,21 @@ def test_indonesian_rupiah_and_bilingual_catalog(client: TestClient):
     locked = client.patch("/api/settings", json={"currency_symbol": "$", "currency_code": "USD"}).json()
     assert locked["currency_symbol"] == "Rp"
     assert locked["currency_code"] == "IDR"
+
+
+def test_lan_qr(client: TestClient):
+    res = client.get("/api/lan/qr")
+    assert res.status_code == 200
+    assert b"<svg" in res.content.lower()
+
+
+def test_backup_restore_roundtrip(client: TestClient):
+    blob = client.get("/api/backup").content
+    assert blob.startswith(b"SQLite format 3")
+    bad = client.post("/api/backup/restore", files={"file": ("notes.txt", b"hello", "text/plain")})
+    assert bad.status_code == 400
+    name = client.get("/api/settings").json()["name"]
+    ok = client.post("/api/backup/restore", files={"file": ("inventory.db", blob, "application/octet-stream")})
+    assert ok.status_code == 200, ok.text
+    assert client.get("/api/settings").json()["name"] == name
+    assert client.get("/api/shop/catalog").status_code == 200

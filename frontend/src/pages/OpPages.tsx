@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import { StatusTag } from "../components/ui";
+import { SharePanel, StatusTag } from "../components/ui";
 import { type MsgKey, useI18n } from "../i18n";
 import { money, unitLabel, when } from "../money";
 import type { Dashboard, Invoice, Item, Movement, PurchaseOrder } from "../types";
@@ -23,6 +23,7 @@ export function OpDashboard() {
         <div className="sku">{t("operator")}</div>
         <h2 style={{ margin: "4px 0 0" }}>{data.shop_name}</h2>
       </div>
+      <SharePanel />
       <div className="row">
         <div className="card kpi">
           {t("skus")}

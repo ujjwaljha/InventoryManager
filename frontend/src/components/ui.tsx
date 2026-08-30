@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { api } from "../api";
 import { type MsgKey, useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice } from "../types";
@@ -141,5 +143,82 @@ export function OpNav() {
       <NavLink to="/invoices">{t("invoices")}</NavLink>
       <NavLink to="/settings">{t("more")}</NavLink>
     </nav>
+  );
+}
+
+export function SharePanel({ showRestore = false }: { showRestore?: boolean }) {
+  const { t } = useI18n();
+  const [lan, setLan] = useState("http://localhost:8000/shop");
+  const [copied, setCopied] = useState(false);
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    api<{ shop_url?: string; lan_host: string }>("/api/lan")
+      .then((r) => setLan(r.shop_url || `http://${r.lan_host}:8000/shop`))
+      .catch(() => undefined);
+  }, []);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(lan);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  async function restore(file: File | undefined) {
+    if (!file) return;
+    if (!window.confirm(t("restoreConfirm"))) return;
+    setNote("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file, file.name || "inventory.db");
+      await api("/api/backup/restore", { method: "POST", body: fd });
+      setNote(t("restored"));
+      window.location.reload();
+    } catch {
+      setNote(t("restoreFailed"));
+    }
+  }
+
+  return (
+    <section className="card">
+      <h3>{t("shareTitle")}</h3>
+      <p className="muted">{t("wifiLive")}</p>
+      <div className="share-row">
+        <img className="qr" src="/api/lan/qr" alt={t("qrAlt")} />
+        <div>
+          <b className="share-url">{lan}</b>
+          <div className="row" style={{ marginTop: 10 }}>
+            <button className="btn" type="button" onClick={copy}>
+              {copied ? t("copied") : t("copyAddress")}
+            </button>
+          </div>
+        </div>
+      </div>
+      <p className="muted">{t("fileShare")}</p>
+      {showRestore && (
+        <div className="row">
+          <a className="btn ghost" href="/api/backup">
+            {t("downloadBackup")}
+          </a>
+          <label className="btn ghost" style={{ cursor: "pointer" }}>
+            {t("restoreBackup")}
+            <input
+              type="file"
+              accept=".db,.sqlite,application/octet-stream"
+              hidden
+              onChange={(e) => {
+                const f = e.currentTarget.files?.[0];
+                e.currentTarget.value = "";
+                restore(f);
+              }}
+            />
+          </label>
+        </div>
+      )}
+      {note && <p className="muted">{note}</p>}
+    </section>
   );
 }

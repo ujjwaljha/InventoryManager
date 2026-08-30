@@ -2,7 +2,19 @@
 
 A one-stop shop on **SQLite**: shoppers create a **purchase order**, **place** it, **inventory is adjusted**, and an **invoice is raised**. Operators keep the catalog and stock. Use it from a **phone**, **MacBook**, or **Windows** PC — one database, many screens.
 
-## Run
+## For the shop (Mac or Windows)
+
+Non-technical staff: see **[Start here.txt](Start%20here.txt)**. Short version:
+
+1. Install [Python 3](https://www.python.org/downloads/) once (Windows: tick **Add python.exe to PATH**).
+2. Double-click **`Start Warung Pojok.command`** (Mac) or **`Start Warung Pojok.bat`** (Windows).
+3. Leave the shop window open.
+
+**Wi‑Fi:** phones on the same network scan the QR on the till. That is live sync — one computer is the shop.
+
+**Bluetooth / AirDrop / USB:** Save a copy, send the file, then Open a copy on the other computer (replaces that computer’s data). Not live two-way Bluetooth.
+
+## Run (developers)
 
 You need Python 3.12+ and Node 20+.
 

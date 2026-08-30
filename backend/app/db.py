@@ -62,3 +62,23 @@ def _add_column_if_missing(conn, table: str, column: str, ddl: str) -> None:
     cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
     if column not in cols:
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+
+
+def replace_sqlite_file(engine: Engine, payload: bytes) -> Engine:
+    """Swap the on-disk SQLite file and return a new engine bound to it."""
+    database = engine.url.database
+    if not database or database == ":memory:":
+        raise ValueError("Backup restore needs a file database")
+    path = Path(database)
+    with engine.connect() as conn:
+        conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+        conn.commit()
+    engine.dispose()
+    for extra in (Path(str(path) + "-wal"), Path(str(path) + "-shm")):
+        if extra.exists():
+            extra.unlink()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(payload)
+    new_engine = make_engine(f"sqlite:///{path}")
+    init_db(new_engine)
+    return new_engine
