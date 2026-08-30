@@ -3,17 +3,54 @@ Warung Pojok — for the shop (not for programmers)
 
 You need one Mac or Windows computer that stays on while the shop is open.
 
+EASIEST: use the real app (no Python)
+-------------------------------------
+1. Get Warung-Pojok-Windows.zip or Warung-Pojok-macOS.zip
+   (GitHub → Actions → “Build shop apps” → the green run → Artifacts,
+    or a Release if someone published one).
+2. Unzip it on the Desktop.
+3. Double-click:
+   • Windows: Warung Pojok.exe  (inside the Warung Pojok folder)
+   • Mac: Warung Pojok.app
+     First time: right-click → Open → Open
+4. Leave the shop window open while you sell.
+   You never need to install Python.
+
+If you only have the source folder (not the .exe / .app)
+----------------------------------------------------------
 1. One-time: install Python 3 from https://www.python.org/downloads/
    Windows: on the installer, tick “Add python.exe to PATH”.
 2. Unzip this folder anywhere (Desktop is fine).
 3. Double-click:
    • Mac:  “Start Warung Pojok.command”
      First time: right-click the file → Open → Open
-     (macOS may warn because it came from the internet)
    • Windows:  “Start Warung Pojok.bat”
 4. Wait until a shop window appears. The first start can take a minute
-   and needs the internet once. After that it works without internet.
-5. Leave that window open while you sell.
+   and needs the internet once.
+
+Wi-Fi (live, same stock everywhere)
+- Phones and other computers must join the SAME Wi-Fi as this computer.
+- On the till screen, scan the QR code or type the address shown.
+- Do not start the shop on two computers at once.
+
+Bluetooth / AirDrop / USB (send a copy)
+- This is not live. It replaces the shop data on the other computer.
+- Click “Save a copy”, send the file by Bluetooth, AirDrop, or USB stick.
+- On the other computer, start the shop, then “Open a copy” and pick that file.
+
+To stop: close the shop window.
+
+---
+
+Warung Pojok — untuk toko (bukan untuk programmer)
+================================================
+
+Paling mudah: pakai Warung Pojok.exe (Windows) atau Warung Pojok.app (Mac).
+Tidak perlu memasang Python. Unzip, klik dua kali, biarkan jendela tetap terbuka.
+
+Wi-Fi: HP di Wi-Fi yang sama, pindai kode QR di kasir.
+Bluetooth / AirDrop / USB: Simpan salinan, kirim berkas, lalu Buka salinan.
+
 
 Wi-Fi (live, same stock everywhere)
 - Phones and other computers must join the SAME Wi-Fi as this computer.

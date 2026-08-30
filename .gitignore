@@ -12,3 +12,5 @@ frontend/.vite/
 .DS_Store
 .coverage
 htmlcov/
+/build/
+/dist/

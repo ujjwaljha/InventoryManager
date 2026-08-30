@@ -8,14 +8,11 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import Base
-
-ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = ROOT / "data"
-DEFAULT_DB = DATA_DIR / "inventory.db"
+from app.paths import sqlite_path
 
 
 def database_url() -> str:
-    return os.environ.get("DATABASE_URL") or f"sqlite:///{DEFAULT_DB}"
+    return os.environ.get("DATABASE_URL") or f"sqlite:///{sqlite_path()}"
 
 
 def make_engine(url: str | None = None) -> Engine:

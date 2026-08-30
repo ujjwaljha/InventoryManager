@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -10,10 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.db import init_db, make_engine, make_session_factory
+from app.paths import frontend_dist, session_secret
 from app.routers import catalog, dashboard, ops, orders, shop
 from app.seed import seed_if_empty
-
-FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
 def create_app(db_url: str | None = None) -> FastAPI:
@@ -27,7 +23,7 @@ def create_app(db_url: str | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.SessionLocal = SessionLocal
 
-    secret = os.environ.get("SECRET_KEY", "corner-shop-dev-secret")
+    secret = session_secret()
     app.add_middleware(SessionMiddleware, secret_key=secret, same_site="lax")
     app.add_middleware(
         CORSMiddleware,
@@ -46,8 +42,9 @@ def create_app(db_url: str | None = None) -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(ops.router)
 
-    if FRONTEND_DIST.is_dir():
-        assets = FRONTEND_DIST / "assets"
+    web = frontend_dist()
+    if web.is_dir():
+        assets = web / "assets"
         if assets.is_dir():
             app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
@@ -55,10 +52,10 @@ def create_app(db_url: str | None = None) -> FastAPI:
         async def spa(full_path: str):
             if full_path.startswith("api/") or full_path == "api":
                 raise HTTPException(status_code=404, detail="Not found")
-            candidate = FRONTEND_DIST / full_path
+            candidate = web / full_path
             if candidate.is_file():
                 return FileResponse(candidate)
-            index = FRONTEND_DIST / "index.html"
+            index = web / "index.html"
             if index.is_file():
                 return FileResponse(index)
             raise HTTPException(status_code=404, detail="Frontend not built")

@@ -4,15 +4,26 @@ A one-stop shop on **SQLite**: shoppers create a **purchase order**, **place** i
 
 ## For the shop (Mac or Windows)
 
-Non-technical staff: see **[Start here.txt](Start%20here.txt)**. Short version:
+Non-technical staff: see **[Start here.txt](Start%20here.txt)**.
 
-1. Install [Python 3](https://www.python.org/downloads/) once (Windows: tick **Add python.exe to PATH**).
-2. Double-click **`Start Warung Pojok.command`** (Mac) or **`Start Warung Pojok.bat`** (Windows).
-3. Leave the shop window open.
+**Packaged app (no Python):** GitHub Actions builds `Warung Pojok.exe` (Windows) and `Warung Pojok.app` (Mac). Download the zip from the **Build shop apps** workflow artifacts, unzip, double-click. Leave the window open.
+
+**From source:** install [Python 3](https://www.python.org/downloads/) once (Windows: tick **Add python.exe to PATH**), then double-click **`Start Warung Pojok.command`** (Mac) or **`Start Warung Pojok.bat`** (Windows).
 
 **Wi‑Fi:** phones on the same network scan the QR on the till. That is live sync — one computer is the shop.
 
 **Bluetooth / AirDrop / USB:** Save a copy, send the file, then Open a copy on the other computer (replaces that computer’s data). Not live two-way Bluetooth.
+
+### Build the .exe / .app yourself
+
+```bash
+python3 -m pip install -r requirements-build.txt
+cd frontend && npm install && npm run build && cd ..
+python3 -m PyInstaller --noconfirm --clean warung.spec
+```
+
+Windows output: `dist/Warung Pojok/Warung Pojok.exe`  
+Mac: `dist/Warung Pojok.app`
 
 ## Run (developers)
 
