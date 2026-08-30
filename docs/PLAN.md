@@ -50,9 +50,10 @@ If two shoppers race for the last unit, the first commit wins; the second placem
 2. **One database, many screens.** SQLite lives with a small local server. Phones and desktops are clients, not separate databases.
 3. **Browser first.** iPhone, Android, macOS, and Windows all have a capable browser. A responsive PWA covers all three without three native codebases.
 4. **Two modes, one app.** Shopper UI is a storefront. Operator UI is inventory + all orders + all invoices. Same SQLite file.
-5. **Money as integer cents.** Unit sell price and invoice totals never use floating-point.
+5. **Money as integer sen (1/100 rupiah).** Unit sell price and invoice totals never use floating-point. The shop currency is **Indonesian Rupiah (IDR)**; the UI shows `Rp` with no decimals (for example `Rp 78.000`).
 6. **Phone-usable checkout.** Large steppers, sticky place-order bar, invoice that prints from the phone browser.
 7. **Desktop-usable operations.** Catalog tables, order/invoice registers, CSV, backup.
+8. **Two cultures.** The UI is English and Indonesian (Bahasa Indonesia). Default locale is Indonesian. Catalog, purchase-order, and invoice lines store English and Indonesian names.
 
 ---
 
@@ -134,7 +135,7 @@ Walk-in counter: operator starts a PO, assigns or types the shopper, places the 
 - Place order on behalf of a shopper
 - CSV export/import of items (prices and catalog, not silent quantity overwrite)
 - SQLite backup download
-- Shop settings: name, address, phone, tax rate, invoice prefix
+- Shop settings: name, address, phone, tax rate, invoice prefix (currency is fixed to Indonesian Rupiah)
 - Responsive layout + PWA
 
 ### Nice to have in v1 if time remains
@@ -485,7 +486,7 @@ Each phase should be mergeable on its own, with tests, before the next starts.
 
 - Alembic migration for the SQL above (including shoppers, POs, invoices)
 - `stock.apply_movement()` tests: in, out, adjust, reject negative
-- Seed shop settings, categories, 8–12 items with sell prices and stock, 2 sample shoppers
+- Seed shop settings, bilingual categories, 8–12 Indonesian grocery items with IDR sell prices and stock, 2 sample shoppers
 
 **Done when:** pytest covers stock math; DB file created in `data/`.
 
