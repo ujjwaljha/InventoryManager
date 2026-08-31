@@ -40,9 +40,11 @@ Then open:
 - Shop floor: [http://localhost:8000/shop](http://localhost:8000/shop)
 - Phone on the same Wi‑Fi: `http://<lan-ip>:8000/shop` (the address is also under Operator → Settings)
 
-The first start creates `data/inventory.db` and seeds a sample Indonesian grocery catalog.
+The first start creates `data/inventory.db` and seeds a sample **building materials** catalog (cement, rebar, paint, pipes, and so on).
 
-The shop and till support **English** and **Indonesian** (switch **EN | ID** in the header; default is Indonesian). Money is **Indonesian Rupiah (IDR)**, shown as `Rp` with no decimals (for example `Rp 78.000`).
+The shop and till support **English** and **Indonesian** (switch **EN | ID** in the header; default is Indonesian). Money is **Indonesian Rupiah (IDR)**, shown as `Rp` with no decimals (for example `Rp 65.000`).
+
+Back office can **restock from a supplier** (FIFO cost layers), sell at the till with a **2.5 inch thermal receipt**, look up receipts by number or customer mobile, record **damage** and **supplier returns**, and run **daily / item / category P&L** using FIFO COGS.
 
 ### Development (API + Vite)
 
@@ -74,9 +76,12 @@ cd backend && python3 -m pytest
 
 **Operators** (`/`)
 
-- Maintain items, sell prices, and locations
-- Receive stock and run counts (sales must go through Place order)
-- See every purchase order and invoice; mark invoices paid or cancel (restores stock)
+- **Till:** walk-in sale with salesperson, customer name and mobile; prints a 2.5 inch thermal receipt
+- **Items:** on-hand quantity, FIFO COGS, selling price, category
+- **Restock:** supplier purchasing that adds stock and FIFO cost layers
+- **Receipts:** look up by receipt number or customer mobile
+- **Reports:** daily sales, item P&L with profit margin %, category performance, stock value
+- **Damage** and **supplier returns** reduce stock using FIFO
 - Export items CSV and download the SQLite file
 
 Placing an order is one transaction: stock out + invoice. Draft purchase orders do not touch inventory.

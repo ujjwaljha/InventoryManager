@@ -18,6 +18,7 @@ class ShopperOut(BaseModel):
 
 class CategoryIn(BaseModel):
     name: str = Field(min_length=1)
+    name_id: str = ""
 
 
 class CategoryOut(BaseModel):
@@ -82,6 +83,8 @@ class ItemOut(BaseModel):
     unit: str
     reorder_point: int
     unit_cost_cents: int
+    fifo_cogs_cents: int = 0
+    inventory_value_cents: int = 0
     unit_price_cents: int
     notes: str
     archived: bool
@@ -94,6 +97,8 @@ class MovementIn(BaseModel):
     kind: str
     quantity: int = Field(ge=0)
     reason: str = ""
+    purpose: str = ""
+    unit_cost_cents: int | None = Field(default=None, ge=0)
 
 
 class MovementOut(BaseModel):
@@ -103,11 +108,17 @@ class MovementOut(BaseModel):
     item_name: str | None = None
     item_name_id: str | None = None
     kind: str
+    purpose: str = ""
     quantity_delta: int
     quantity_after: int
     reason: str
+    cogs_cents: int = 0
+    unit_cost_cents: int = 0
     purchase_order_id: int | None
     invoice_id: int | None
+    restock_id: int | None = None
+    damage_id: int | None = None
+    supplier_return_id: int | None = None
     created_at: str
 
 
@@ -130,6 +141,7 @@ class PoLineOut(BaseModel):
 
 class PlaceIn(BaseModel):
     note: str = ""
+    salesperson_name: str = ""
 
 
 class InvoiceLineOut(BaseModel):
@@ -140,6 +152,7 @@ class InvoiceLineOut(BaseModel):
     quantity: int
     unit_price_cents: int
     line_total_cents: int
+    cogs_cents: int = 0
 
 
 class InvoiceOut(BaseModel):
@@ -160,6 +173,8 @@ class InvoiceOut(BaseModel):
     shop_phone: str
     currency_symbol: str
     currency_code: str = "IDR"
+    salesperson_name: str = ""
+    cogs_cents: int = 0
     issued_at: str
     paid_at: str | None
     voided_at: str | None
@@ -217,6 +232,13 @@ class SettingsOut(BaseModel):
     po_prefix: str
     next_invoice_seq: int
     next_po_seq: int
+    restock_prefix: str = "RST"
+    next_restock_seq: int = 1
+    damage_prefix: str = "DMG"
+    next_damage_seq: int = 1
+    return_prefix: str = "RTN"
+    next_return_seq: int = 1
+    shop_today: str = ""
 
 
 class Shortage(BaseModel):
@@ -240,3 +262,49 @@ class DashboardOut(BaseModel):
     shop_name: str
     low_stock_items: list[ItemOut]
     recent_movements: list[MovementOut]
+
+
+class SupplierIn(BaseModel):
+    name: str = Field(min_length=1)
+    phone: str = ""
+    notes: str = ""
+
+
+class RestockLineIn(BaseModel):
+    item_id: int
+    quantity: int = Field(gt=0)
+    unit_cost_cents: int = Field(ge=0)
+
+
+class RestockCreateIn(BaseModel):
+    supplier_id: int | None = None
+    supplier_name: str | None = None
+    supplier_phone: str = ""
+    note: str = ""
+
+
+class OfficeLineIn(BaseModel):
+    item_id: int
+    quantity: int = Field(gt=0)
+
+
+class DamageIn(BaseModel):
+    reason: str = Field(min_length=1)
+    lines: list[OfficeLineIn]
+
+
+class SupplierReturnIn(BaseModel):
+    reason: str = Field(min_length=1)
+    supplier_id: int | None = None
+    supplier_name: str | None = None
+    supplier_phone: str = ""
+    lines: list[OfficeLineIn]
+
+
+class TillSaleIn(BaseModel):
+    salesperson_name: str = Field(min_length=1)
+    customer_name: str = Field(min_length=1)
+    customer_phone: str = Field(min_length=6)
+    note: str = ""
+    lines: list[OfficeLineIn]
+

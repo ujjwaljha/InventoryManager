@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, StatusTag } from "../components/ui";
+import { InvoiceSheet, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice } from "../types";
@@ -56,14 +56,17 @@ export function ShopInvoiceDetail() {
   if (error) return <div className="banner">{error}</div>;
   if (!invoice) return <p className="muted">{t("loadingInvoice")}</p>;
   return (
-    <div className="grid">
+    <div className="grid print-thermal">
       <div className="row no-print">
         <Link to="/shop/invoices">{t("backInvoices")}</Link>
         <button className="btn ghost" onClick={() => window.print()}>
-          {t("printSave")}
+          {t("printThermal")}
         </button>
       </div>
-      <InvoiceSheet invoice={invoice} />
+      <ThermalReceipt invoice={invoice} />
+      <div className="no-print">
+        <InvoiceSheet invoice={invoice} />
+      </div>
     </div>
   );
 }

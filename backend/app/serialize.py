@@ -1,4 +1,13 @@
-from app.models import Invoice, Item, PurchaseOrder, ShopSettings, StockMovement
+from app.models import (
+    DamageNote,
+    Invoice,
+    Item,
+    PurchaseOrder,
+    Restock,
+    ShopSettings,
+    StockMovement,
+    SupplierReturn,
+)
 from app.schemas import (
     InvoiceLineOut,
     InvoiceOut,
@@ -9,9 +18,12 @@ from app.schemas import (
     SettingsOut,
 )
 from app.services.checkout import compute_tax_cents, get_settings, line_total
+from app.services.stock import lot_stats
+from app.timeutil import today_shop
 
 
 def item_out(item: Item) -> ItemOut:
+    fifo_cogs, value = lot_stats(item)
     return ItemOut(
         id=item.id,
         sku=item.sku,
@@ -29,6 +41,8 @@ def item_out(item: Item) -> ItemOut:
         unit=item.unit,
         reorder_point=item.reorder_point,
         unit_cost_cents=item.unit_cost_cents,
+        fifo_cogs_cents=fifo_cogs,
+        inventory_value_cents=value,
         unit_price_cents=item.unit_price_cents,
         notes=item.notes or "",
         archived=bool(item.archived),
@@ -47,11 +61,17 @@ def movement_out(mov: StockMovement) -> MovementOut:
         item_name=item.name if item else None,
         item_name_id=(item.name_id or item.name) if item else None,
         kind=mov.kind,
+        purpose=mov.purpose or "",
         quantity_delta=mov.quantity_delta,
         quantity_after=mov.quantity_after,
         reason=mov.reason or "",
+        cogs_cents=mov.cogs_cents or 0,
+        unit_cost_cents=mov.unit_cost_cents or 0,
         purchase_order_id=mov.purchase_order_id,
         invoice_id=mov.invoice_id,
+        restock_id=mov.restock_id,
+        damage_id=mov.damage_id,
+        supplier_return_id=mov.supplier_return_id,
         created_at=mov.created_at,
     )
 
@@ -72,11 +92,13 @@ def invoice_out(inv: Invoice) -> InvoiceOut:
         tax_bps=inv.tax_bps,
         tax_cents=inv.tax_cents,
         total_cents=inv.total_cents,
+        cogs_cents=inv.cogs_cents or 0,
         shop_name=inv.shop_name,
         shop_address=inv.shop_address,
         shop_phone=inv.shop_phone,
         currency_symbol=inv.currency_symbol or "Rp",
         currency_code="IDR",
+        salesperson_name=inv.salesperson_name or "",
         issued_at=inv.issued_at,
         paid_at=inv.paid_at,
         voided_at=inv.voided_at,
@@ -89,6 +111,7 @@ def invoice_out(inv: Invoice) -> InvoiceOut:
                 quantity=ln.quantity,
                 unit_price_cents=ln.unit_price_cents,
                 line_total_cents=ln.line_total_cents,
+                cogs_cents=getattr(ln, "cogs_cents", 0) or 0,
             )
             for ln in inv.lines
         ],
@@ -158,8 +181,94 @@ def settings_out(s: ShopSettings) -> SettingsOut:
         po_prefix=s.po_prefix,
         next_invoice_seq=s.next_invoice_seq,
         next_po_seq=s.next_po_seq,
+        restock_prefix=getattr(s, "restock_prefix", None) or "RST",
+        next_restock_seq=int(getattr(s, "next_restock_seq", None) or 1),
+        damage_prefix=getattr(s, "damage_prefix", None) or "DMG",
+        next_damage_seq=int(getattr(s, "next_damage_seq", None) or 1),
+        return_prefix=getattr(s, "return_prefix", None) or "RTN",
+        next_return_seq=int(getattr(s, "next_return_seq", None) or 1),
+        shop_today=today_shop(),
     )
 
 
 def po_out_with_settings(db, po: PurchaseOrder) -> PurchaseOrderOut:
     return po_out(po, get_settings(db))
+
+
+def restock_out(row: Restock) -> dict:
+    supplier = row.supplier
+    total = sum(ln.quantity * ln.unit_cost_cents for ln in row.lines)
+    return {
+        "id": row.id,
+        "number": row.number,
+        "status": row.status,
+        "note": row.note or "",
+        "supplier_id": row.supplier_id,
+        "supplier_name": supplier.name if supplier else "",
+        "supplier_phone": supplier.phone if supplier else "",
+        "received_at": row.received_at,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "total_cost_cents": total,
+        "lines": [
+            {
+                "id": ln.id,
+                "item_id": ln.item_id,
+                "sku": ln.sku,
+                "name": ln.name,
+                "name_id": ln.name_id or ln.name,
+                "quantity": ln.quantity,
+                "unit_cost_cents": ln.unit_cost_cents,
+                "line_total_cents": ln.quantity * ln.unit_cost_cents,
+            }
+            for ln in row.lines
+        ],
+    }
+
+
+def damage_out(row: DamageNote) -> dict:
+    return {
+        "id": row.id,
+        "number": row.number,
+        "reason": row.reason,
+        "created_at": row.created_at,
+        "cogs_cents": row.cogs_cents,
+        "lines": [
+            {
+                "id": ln.id,
+                "item_id": ln.item_id,
+                "sku": ln.sku,
+                "name": ln.name,
+                "name_id": ln.name_id or ln.name,
+                "quantity": ln.quantity,
+                "cogs_cents": ln.cogs_cents,
+            }
+            for ln in row.lines
+        ],
+    }
+
+
+def supplier_return_out(row: SupplierReturn) -> dict:
+    supplier = row.supplier
+    return {
+        "id": row.id,
+        "number": row.number,
+        "reason": row.reason,
+        "created_at": row.created_at,
+        "cogs_cents": row.cogs_cents,
+        "supplier_id": row.supplier_id,
+        "supplier_name": supplier.name if supplier else "",
+        "supplier_phone": supplier.phone if supplier else "",
+        "lines": [
+            {
+                "id": ln.id,
+                "item_id": ln.item_id,
+                "sku": ln.sku,
+                "name": ln.name,
+                "name_id": ln.name_id or ln.name,
+                "quantity": ln.quantity,
+                "cogs_cents": ln.cogs_cents,
+            }
+            for ln in row.lines
+        ],
+    }

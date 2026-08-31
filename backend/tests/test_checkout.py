@@ -21,7 +21,7 @@ def test_health(client: TestClient):
 
 def test_stock_in_out_adjust(client: TestClient):
     items = client.get("/api/items").json()
-    item = next(i for i in items if i["sku"] == "SLT-1KG")
+    item = next(i for i in items if i["sku"] == "NAL-1")
     start = item["quantity"]
     res = client.post(f"/api/items/{item['id']}/movements", json={"kind": "in", "quantity": 5, "reason": "Delivery"})
     assert res.status_code == 200
@@ -36,7 +36,7 @@ def test_stock_in_out_adjust(client: TestClient):
 
 def test_stock_out_rejects_negative(client: TestClient):
     items = client.get("/api/items").json()
-    item = next(i for i in items if i["sku"] == "SLT-1KG")
+    item = next(i for i in items if i["sku"] == "NAL-1")
     res = client.post(
         f"/api/items/{item['id']}/movements",
         json={"kind": "out", "quantity": item["quantity"] + 10, "reason": "Too much"},
@@ -46,8 +46,8 @@ def test_stock_out_rejects_negative(client: TestClient):
 
 def test_place_order_adjusts_stock_and_raises_invoice(client: TestClient):
     items = client.get("/api/shop/catalog").json()
-    atta = next(i for i in items if i["sku"] == "ATA-5KG")
-    oil = next(i for i in items if i["sku"] == "OIL-1L")
+    atta = next(i for i in items if i["sku"] == "CEM-50")
+    oil = next(i for i in items if i["sku"] == "PNT-5L")
     atta_qty = atta["quantity"]
     oil_qty = oil["quantity"]
 
@@ -71,8 +71,8 @@ def test_place_order_adjusts_stock_and_raises_invoice(client: TestClient):
     assert body["invoice"]["total_cents"] == expected
 
     catalog = {i["sku"]: i for i in client.get("/api/shop/catalog").json()}
-    assert catalog["ATA-5KG"]["quantity"] == atta_qty - 2
-    assert catalog["OIL-1L"]["quantity"] == oil_qty - 1
+    assert catalog["CEM-50"]["quantity"] == atta_qty - 2
+    assert catalog["PNT-5L"]["quantity"] == oil_qty - 1
 
     moves = client.get(f"/api/items/{atta['id']}/movements").json()
     assert any(m["kind"] == "out" and m["quantity_delta"] == -2 and m["invoice_id"] for m in moves)
@@ -80,7 +80,7 @@ def test_place_order_adjusts_stock_and_raises_invoice(client: TestClient):
 
 def test_place_rejects_shortage_and_does_not_write_invoice(client: TestClient):
     items = client.get("/api/shop/catalog").json()
-    atta = next(i for i in items if i["sku"] == "ATA-5KG")
+    atta = next(i for i in items if i["sku"] == "CEM-50")
     client.post("/api/shop/session", json={"name": "Hungry", "phone": "9000000002"})
     res = client.post("/api/shop/po/lines", json={"item_id": atta["id"], "quantity": atta["quantity"] + 5})
     assert res.status_code == 409
@@ -109,7 +109,7 @@ def test_empty_po_cannot_place(client: TestClient):
 
 def test_cancel_restores_stock_and_voids_invoice(client: TestClient):
     items = client.get("/api/shop/catalog").json()
-    salt = next(i for i in items if i["sku"] == "SLT-1KG")
+    salt = next(i for i in items if i["sku"] == "NAL-1")
     start = salt["quantity"]
     client.post("/api/shop/session", json={"name": "Cancel Me", "phone": "9000000004"})
     client.post("/api/shop/po/lines", json={"item_id": salt["id"], "quantity": 4})
@@ -125,7 +125,7 @@ def test_cancel_restores_stock_and_voids_invoice(client: TestClient):
 
 def test_second_place_fails_when_stock_gone(client: TestClient):
     items = client.get("/api/shop/catalog").json()
-    tea = next(i for i in items if i["sku"] == "TEA-250")
+    tea = next(i for i in items if i["sku"] == "PVC-4")
     # first shopper buys all
     client.post("/api/shop/session", json={"name": "A", "phone": "9000000011"})
     client.post("/api/shop/po/lines", json={"item_id": tea["id"], "quantity": tea["quantity"]})
@@ -139,7 +139,7 @@ def test_second_place_fails_when_stock_gone(client: TestClient):
 
 def test_mark_paid(client: TestClient):
     items = client.get("/api/shop/catalog").json()
-    soap = next(i for i in items if i["sku"] == "SOAP-4")
+    soap = next(i for i in items if i["sku"] == "HAM-1")
     client.post("/api/shop/session", json={"name": "Payer", "phone": "9000000013"})
     client.post("/api/shop/po/lines", json={"item_id": soap["id"], "quantity": 1})
     placed = client.post("/api/shop/po/place", json={"note": ""}).json()
@@ -155,13 +155,14 @@ def test_indonesian_rupiah_and_bilingual_catalog(client: TestClient):
     settings = client.get("/api/settings").json()
     assert settings["currency_symbol"] == "Rp"
     assert settings["currency_code"] == "IDR"
+    assert settings["shop_today"]
     health = client.get("/api/health").json()
     assert health["currency_code"] == "IDR"
     items = client.get("/api/shop/catalog").json()
-    rice = next(i for i in items if i["sku"] == "ATA-5KG")
+    rice = next(i for i in items if i["sku"] == "CEM-50")
     assert rice["name_id"]
     assert rice["name_id"] != rice["name"]
-    assert rice["unit_price_cents"] == 78000 * 100
+    assert rice["unit_price_cents"] == 65000 * 100
     assert rice["category_name_id"]
     invoice = client.post("/api/shop/session", json={"name": "Sari", "phone": "081200000099"})
     assert invoice.status_code == 200

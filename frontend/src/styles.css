@@ -332,8 +332,7 @@ th {
   background: #efe6d4;
   color: #6b5428;
 }
-.tag.placed,
-.tag.issued {
+.tag.received {
   background: #dceee4;
   color: var(--ok);
 }
@@ -345,6 +344,64 @@ th {
 .tag.void {
   background: #f3d9d4;
   color: var(--danger);
+}
+
+.pick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.thermal-receipt {
+  width: 2.5in;
+  max-width: 2.5in;
+  margin: 0 auto;
+  background: white;
+  color: #111;
+  padding: 0.12in;
+  font-family: "Cascadia Mono", "SFMono-Regular", ui-monospace, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  border: 1px dashed var(--line);
+}
+
+.thermal-head {
+  text-align: center;
+  margin: 0;
+}
+
+.thermal-receipt h1 {
+  font-family: inherit;
+  font-size: 13px;
+  margin: 0 0 4px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.thermal-dash {
+  border: 0;
+  border-top: 1px dashed #222;
+  margin: 8px 0;
+}
+
+.thermal-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.thermal-item {
+  margin-bottom: 6px;
+}
+
+.thermal-total {
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.office-nav {
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .invoice-sheet {
@@ -480,5 +537,15 @@ th {
   .invoice-sheet {
     box-shadow: none;
     border: 0;
+  }
+  .print-thermal .thermal-receipt,
+  .thermal-receipt {
+    border: 0;
+    width: 2.5in;
+    max-width: 2.5in;
+  }
+  @page {
+    size: 2.5in auto;
+    margin: 0.08in;
   }
 }

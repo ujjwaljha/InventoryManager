@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.deps import get_db, raise_checkout
-from app.models import Category, Item, Location, StockMovement
+from app.deps import get_db
+from app.models import Category, Item, Location, StockLot, StockMovement
 from app.schemas import CategoryIn, ItemIn, ItemPatch, LocationIn, MovementIn
 from app.serialize import item_out, movement_out
 from app.services.stock import StockError, apply_movement, stock_http
@@ -35,11 +35,11 @@ def create_category(body: CategoryIn, db: Session = Depends(get_db)):
     existing = db.execute(select(Category).where(Category.name == body.name.strip())).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Category already exists")
-    cat = Category(name=body.name.strip(), created_at=utcnow())
+    cat = Category(name=body.name.strip(), name_id=(body.name_id or body.name).strip(), created_at=utcnow())
     db.add(cat)
     db.commit()
     db.refresh(cat)
-    return {"id": cat.id, "name": cat.name}
+    return {"id": cat.id, "name": cat.name, "name_id": cat.name_id or cat.name}
 
 
 @router.get("/locations")
@@ -69,7 +69,11 @@ def list_items(
     include_archived: bool = False,
     db: Session = Depends(get_db),
 ):
-    stmt = select(Item).options(selectinload(Item.category), selectinload(Item.location)).order_by(Item.name)
+    stmt = (
+        select(Item)
+        .options(selectinload(Item.category), selectinload(Item.location), selectinload(Item.lots))
+        .order_by(Item.name)
+    )
     if not include_archived:
         stmt = stmt.where(Item.archived == 0)
     if category_id:
@@ -113,13 +117,23 @@ def create_item(body: ItemIn, db: Session = Depends(get_db)):
     db.flush()
     if body.quantity and body.quantity > 0:
         try:
-            apply_movement(db, item_id=item.id, kind="in", quantity=body.quantity, reason="Opening stock")
+            apply_movement(
+                db,
+                item_id=item.id,
+                kind="in",
+                quantity=body.quantity,
+                reason="Opening stock",
+                purpose="opening",
+                unit_cost_cents=body.unit_cost_cents,
+            )
         except StockError as err:
             db.rollback()
             raise stock_http(err) from err
     db.commit()
     item = db.execute(
-        select(Item).options(selectinload(Item.category), selectinload(Item.location)).where(Item.id == item.id)
+        select(Item)
+        .options(selectinload(Item.category), selectinload(Item.location), selectinload(Item.lots))
+        .where(Item.id == item.id)
     ).scalar_one()
     return item_out(item)
 
@@ -127,7 +141,9 @@ def create_item(body: ItemIn, db: Session = Depends(get_db)):
 @router.get("/items/{item_id}")
 def get_item(item_id: int, db: Session = Depends(get_db)):
     item = db.execute(
-        select(Item).options(selectinload(Item.category), selectinload(Item.location)).where(Item.id == item_id)
+        select(Item)
+        .options(selectinload(Item.category), selectinload(Item.location), selectinload(Item.lots))
+        .where(Item.id == item_id)
     ).scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -152,7 +168,9 @@ def patch_item(item_id: int, body: ItemPatch, db: Session = Depends(get_db)):
     item.updated_at = utcnow()
     db.commit()
     item = db.execute(
-        select(Item).options(selectinload(Item.category), selectinload(Item.location)).where(Item.id == item_id)
+        select(Item)
+        .options(selectinload(Item.category), selectinload(Item.location), selectinload(Item.lots))
+        .where(Item.id == item_id)
     ).scalar_one()
     return item_out(item)
 
@@ -172,8 +190,13 @@ def archive_item(item_id: int, db: Session = Depends(get_db)):
 def item_movement(item_id: int, body: MovementIn, db: Session = Depends(get_db)):
     if body.kind == "out":
         reason = body.reason.strip() or "Shrinkage"
+        purpose = body.purpose.strip() or "damage"
+    elif body.kind == "in":
+        reason = body.reason.strip() or "Receive"
+        purpose = body.purpose.strip() or "receive"
     else:
         reason = body.reason.strip()
+        purpose = body.purpose.strip() or "adjust"
     try:
         mov = apply_movement(
             db,
@@ -181,6 +204,8 @@ def item_movement(item_id: int, body: MovementIn, db: Session = Depends(get_db))
             kind=body.kind,
             quantity=body.quantity,
             reason=reason,
+            purpose=purpose,
+            unit_cost_cents=body.unit_cost_cents,
         )
         db.commit()
         db.refresh(mov)
@@ -213,3 +238,24 @@ def all_movements(limit: int = Query(default=30, le=200), db: Session = Depends(
         .limit(limit)
     ).scalars()
     return [movement_out(m) for m in rows]
+
+
+@router.get("/items/{item_id}/lots")
+def item_lots(item_id: int, db: Session = Depends(get_db)):
+    if db.get(Item, item_id) is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    lots = db.execute(
+        select(StockLot).where(StockLot.item_id == item_id).order_by(StockLot.received_at.asc(), StockLot.id.asc())
+    ).scalars()
+    return [
+        {
+            "id": lot.id,
+            "received_at": lot.received_at,
+            "unit_cost_cents": lot.unit_cost_cents,
+            "qty_original": lot.qty_original,
+            "qty_remaining": lot.qty_remaining,
+            "source": lot.source,
+            "restock_id": lot.restock_id,
+        }
+        for lot in lots
+    ]

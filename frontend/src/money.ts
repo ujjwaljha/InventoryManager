@@ -41,8 +41,43 @@ const UNIT_ID: Record<string, string> = {
   ctn: "pkt",
   ea: "pcs",
   pcs: "pcs",
-  bag: "karung",
+  bag: "sak",
+  stick: "btg",
+  pail: "kaleng",
+  m: "m",
+  m3: "m³",
+  sheet: "lembar",
+  box: "dus",
 };
+
+export function whenFull(iso: string | null | undefined, locale: Lang = "id"): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.replace("T", " ");
+  const tag = locale === "id" ? "id-ID" : "en-GB";
+  return d.toLocaleString(tag, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+export function marginPct(bps: number): string {
+  return `${(Number(bps) / 100).toFixed(1)}%`;
+}
+
+export function todayInput(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export function unitLabel(unit: string, locale: Lang): string {
   if (locale !== "id") return unit;

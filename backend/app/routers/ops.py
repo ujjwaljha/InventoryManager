@@ -85,9 +85,6 @@ async def restore_backup(request: Request, file: UploadFile = File(...)):
 
 
 @router.get("/export/items.csv")
-
-
-@router.get("/export/items.csv")
 def export_items(db: Session = Depends(get_db)):
     items = db.execute(
         select(Item).options(selectinload(Item.category), selectinload(Item.location)).order_by(Item.sku)

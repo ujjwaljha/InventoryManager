@@ -8,7 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.db import init_db, make_engine, make_session_factory
 from app.paths import frontend_dist, session_secret
-from app.routers import catalog, dashboard, ops, orders, shop
+from app.routers import catalog, dashboard, office, ops, orders, reports, shop
 from app.seed import seed_if_empty
 
 
@@ -41,6 +41,8 @@ def create_app(db_url: str | None = None) -> FastAPI:
     app.include_router(orders.router)
     app.include_router(dashboard.router)
     app.include_router(ops.router)
+    app.include_router(office.router)
+    app.include_router(reports.router)
 
     web = frontend_dist()
     if web.is_dir():

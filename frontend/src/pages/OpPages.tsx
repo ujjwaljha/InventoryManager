@@ -25,6 +25,20 @@ export function OpDashboard() {
       </div>
       <SharePanel />
       <div className="row">
+        <Link className="btn" to="/till">
+          {t("till")}
+        </Link>
+        <Link className="btn ghost" to="/restock">
+          {t("restock")}
+        </Link>
+        <Link className="btn ghost" to="/receipts">
+          {t("receipts")}
+        </Link>
+        <Link className="btn ghost" to="/reports">
+          {t("reports")}
+        </Link>
+      </div>
+      <div className="row">
         <div className="card kpi">
           {t("skus")}
           <b>{data.sku_count}</b>
@@ -113,7 +127,9 @@ export function OpItems() {
             <tr>
               <th>{t("sku")}</th>
               <th>{t("name")}</th>
+              <th>{t("category")}</th>
               <th>{t("qty")}</th>
+              <th>{t("fifoCogs")}</th>
               <th>{t("price")}</th>
               <th>{t("location")}</th>
             </tr>
@@ -126,9 +142,12 @@ export function OpItems() {
                   <Link to={`/items/${i.id}`}>{pick(i.name, i.name_id)}</Link>
                   {i.low_stock && <div className="stock low">{t("lowStock")}</div>}
                 </td>
+                <td className="muted">{pick(i.category_name || "", i.category_name_id)}</td>
                 <td>
                   {i.quantity} {unitLabel(i.unit, locale)}
+                  <div className="muted">{money(i.fifo_cogs_cents || i.unit_cost_cents)}</div>
                 </td>
+                <td>{money(i.fifo_cogs_cents || i.unit_cost_cents)}</td>
                 <td>{money(i.unit_price_cents)}</td>
                 <td className="muted">{pick(i.location_name || "", i.location_name_id)}</td>
               </tr>
