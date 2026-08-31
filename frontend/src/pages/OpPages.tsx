@@ -145,6 +145,7 @@ export function OpItems() {
                 <td className="muted">{pick(i.category_name || "", i.category_name_id)}</td>
                 <td>
                   {i.quantity} {unitLabel(i.unit, locale)}
+                  <div className="muted">{money(i.fifo_cogs_cents || i.unit_cost_cents)}</div>
                 </td>
                 <td>{money(i.fifo_cogs_cents || i.unit_cost_cents)}</td>
                 <td>{money(i.unit_price_cents)}</td>

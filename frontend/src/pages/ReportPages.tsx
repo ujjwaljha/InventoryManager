@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { marginPct, money, todayInput, unitLabel } from "../money";
-import type { Movement, SalesReport, StockReport } from "../types";
+import type { Movement, SalesReport, Settings, StockReport } from "../types";
 
 function DateRange({
   from,
@@ -44,23 +44,37 @@ function DateRange({
 
 export function ReportsPage() {
   const { t, pick, locale } = useI18n();
-  const today = todayInput();
   const [tab, setTab] = useState<"daily" | "items" | "cats" | "stock" | "ledger">("daily");
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [stock, setStock] = useState<StockReport | null>(null);
   const [ledger, setLedger] = useState<Movement[]>([]);
   const [error, setError] = useState("");
 
-  async function loadSales() {
+  useEffect(() => {
+    api<Settings>("/api/settings")
+      .then((s) => {
+        const day = s.shop_today || todayInput();
+        setFrom(day);
+        setTo(day);
+      })
+      .catch(() => {
+        const day = todayInput();
+        setFrom(day);
+        setTo(day);
+      });
+  }, []);
+
+  async function loadSales(dateFrom = from, dateTo = to) {
     setError("");
-    const q = `date_from=${from}&date_to=${to}`;
-    const path = tab === "daily" ? `/api/reports/daily?date=${from}` : `/api/reports/pnl?${q}`;
+    const q = `date_from=${dateFrom}&date_to=${dateTo}`;
+    const path = tab === "daily" ? `/api/reports/daily?date=${dateFrom}` : `/api/reports/pnl?${q}`;
     setSales(await api<SalesReport>(path));
   }
 
   async function load() {
+    if (!from && tab !== "stock" && tab !== "ledger") return;
     try {
       if (tab === "stock") setStock(await api<StockReport>("/api/reports/stock"));
       else if (tab === "ledger") setLedger(await api<Movement[]>("/api/reports/ledger?limit=80"));
@@ -72,7 +86,7 @@ export function ReportsPage() {
 
   useEffect(() => {
     load();
-  }, [tab]);
+  }, [tab, from]);
 
   return (
     <div className="grid">

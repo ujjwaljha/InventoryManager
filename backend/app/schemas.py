@@ -238,6 +238,7 @@ class SettingsOut(BaseModel):
     next_damage_seq: int = 1
     return_prefix: str = "RTN"
     next_return_seq: int = 1
+    shop_today: str = ""
 
 
 class Shortage(BaseModel):

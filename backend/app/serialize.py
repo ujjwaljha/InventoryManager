@@ -19,6 +19,7 @@ from app.schemas import (
 )
 from app.services.checkout import compute_tax_cents, get_settings, line_total
 from app.services.stock import lot_stats
+from app.timeutil import today_shop
 
 
 def item_out(item: Item) -> ItemOut:
@@ -186,6 +187,7 @@ def settings_out(s: ShopSettings) -> SettingsOut:
         next_damage_seq=int(getattr(s, "next_damage_seq", None) or 1),
         return_prefix=getattr(s, "return_prefix", None) or "RTN",
         next_return_seq=int(getattr(s, "next_return_seq", None) or 1),
+        shop_today=today_shop(),
     )
 
 

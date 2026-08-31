@@ -149,6 +149,13 @@ export type Settings = {
   po_prefix: string;
   next_invoice_seq: number;
   next_po_seq: number;
+  restock_prefix?: string;
+  next_restock_seq?: number;
+  damage_prefix?: string;
+  next_damage_seq?: number;
+  return_prefix?: string;
+  next_return_seq?: number;
+  shop_today?: string;
 };
 
 export type Shortage = {

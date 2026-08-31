@@ -155,6 +155,7 @@ def test_indonesian_rupiah_and_bilingual_catalog(client: TestClient):
     settings = client.get("/api/settings").json()
     assert settings["currency_symbol"] == "Rp"
     assert settings["currency_code"] == "IDR"
+    assert settings["shop_today"]
     health = client.get("/api/health").json()
     assert health["currency_code"] == "IDR"
     items = client.get("/api/shop/catalog").json()
