@@ -134,6 +134,7 @@ def remove_restock_line(db: Session, restock: Restock, item_id: int) -> Restock:
 
 
 def receive_restock(db: Session, restock: Restock) -> Restock:
+    chk.begin_immediate(db)
     if restock.status != "draft":
         raise chk.CheckoutError("This restock was already received")
     if not restock.lines:
@@ -166,6 +167,7 @@ def receive_restock(db: Session, restock: Restock) -> Restock:
 
 
 def record_damage(db: Session, reason: str, lines: list[tuple[int, int]]) -> DamageNote:
+    chk.begin_immediate(db)
     reason = reason.strip()
     if not reason:
         raise chk.CheckoutError("Reason is required")
@@ -187,6 +189,7 @@ def record_damage(db: Session, reason: str, lines: list[tuple[int, int]]) -> Dam
             raise chk.CheckoutError("Item is not available", 404)
         if quantity <= 0:
             raise chk.CheckoutError("Quantity must be greater than 0")
+        chk.require_sellable(db, item, quantity)
         mov = apply_movement(
             db,
             item_id=item.id,
@@ -224,6 +227,7 @@ def record_supplier_return(
     lines: list[tuple[int, int]],
     supplier: Supplier | None = None,
 ) -> SupplierReturn:
+    chk.begin_immediate(db)
     reason = reason.strip()
     if not reason:
         raise chk.CheckoutError("Reason is required")
@@ -246,6 +250,7 @@ def record_supplier_return(
             raise chk.CheckoutError("Item is not available", 404)
         if quantity <= 0:
             raise chk.CheckoutError("Quantity must be greater than 0")
+        chk.require_sellable(db, item, quantity)
         mov = apply_movement(
             db,
             item_id=item.id,
@@ -287,15 +292,22 @@ def till_sale(
     salesperson_name: str,
     lines: list[tuple[int, int]],
     note: str = "",
+    paid: bool = False,
 ):
-    """Create a draft PO, add lines at sell price, place it, return (po, invoice)."""
+    """Create a draft PO, add lines at sell price, place it, optionally mark paid.
+
+    An open shop cart for the same phone is left in place. Own holds do not
+    block the till; the shop cart may 409 later if on-hand is now short.
+    """
     if not lines:
         raise chk.CheckoutError("Add at least one item")
     shopper = chk.upsert_shopper(db, customer_name, customer_phone)
     po = chk.create_fresh_draft(db, shopper.id)
     for item_id, quantity in lines:
-        po = chk.upsert_line(db, po, item_id, quantity)
+        po = chk.upsert_line(db, po, item_id, quantity, ignore_own_holds=True)
     db.expire(po, ["lines"])
     po = chk.load_po(db, po.id) or po
     po, invoice = chk.place_order(db, po, note=note, salesperson_name=salesperson_name)
+    if paid:
+        invoice = chk.mark_paid(db, invoice)
     return po, invoice

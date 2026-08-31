@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.db import init_db, make_engine, make_session_factory
+from app.operator import LanAccessMiddleware, OperatorPinMiddleware
 from app.paths import frontend_dist, session_secret
 from app.routers import catalog, dashboard, office, ops, orders, reports, shop
 from app.seed import seed_if_empty
@@ -24,6 +25,8 @@ def create_app(db_url: str | None = None) -> FastAPI:
     app.state.SessionLocal = SessionLocal
 
     secret = session_secret()
+    app.add_middleware(OperatorPinMiddleware)
+    app.add_middleware(LanAccessMiddleware)
     app.add_middleware(SessionMiddleware, secret_key=secret, same_site="lax")
     app.add_middleware(
         CORSMiddleware,

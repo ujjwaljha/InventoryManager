@@ -1,12 +1,14 @@
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db
-from app.models import Invoice, Item, StockMovement
+from app.models import Invoice, InvoicePayment, Item, StockMovement
+from app.qty import from_store, money_qty
 from app.serialize import invoice_out, item_out, movement_out
+from app.services import checkout as chk
 from app.services.checkout import get_settings
 from app.services.stock import lot_stats
 from app.timeutil import range_bounds, shop_day_bounds, today_shop
@@ -28,6 +30,7 @@ def _active_invoices(db: Session, start: str, end: str) -> list[Invoice]:
                 selectinload(Invoice.lines),
                 selectinload(Invoice.shopper),
                 selectinload(Invoice.purchase_order),
+                selectinload(Invoice.payments),
             )
             .where(
                 Invoice.status.in_(("issued", "paid")),
@@ -59,16 +62,17 @@ def stock_report(db: Session = Depends(get_db)):
             .order_by(Item.name)
         ).scalars()
     )
+    reserved_map = chk.draft_reserved(db, [i.id for i in items])
     rows = []
     total_value = 0
     for item in items:
         fifo, value = lot_stats(item)
         total_value += value
         sell = item.unit_price_cents
-        potential = (sell - fifo) * item.quantity
+        potential = money_qty(item.quantity, sell - fifo)
         rows.append(
             {
-                **item_out(item).model_dump(),
+                **item_out(item, reserved_map.get(item.id, 0)).model_dump(),
                 "potential_profit_cents": potential,
                 "potential_margin_bps": _margin_bps(sell - fifo, sell) if sell else 0,
             }
@@ -77,7 +81,7 @@ def stock_report(db: Session = Depends(get_db)):
         "currency_symbol": settings.currency_symbol or "Rp",
         "currency_code": "IDR",
         "sku_count": len(rows),
-        "units_on_hand": sum(i.quantity for i in items),
+        "units_on_hand": from_store(sum(i.quantity for i in items)),
         "inventory_value_cents": total_value,
         "items": rows,
     }
@@ -89,7 +93,7 @@ def daily_sales(date: str | None = Query(default=None), db: Session = Depends(ge
     day = date or today_shop()
     start, end = shop_day_bounds(day)
     invoices = _active_invoices(db, start, end)
-    return _sales_bundle(db, settings, invoices, date_from=day, date_to=day)
+    return _sales_bundle(db, settings, invoices, date_from=day, date_to=day, start=start, end=end)
 
 
 @router.get("/pnl")
@@ -101,7 +105,15 @@ def item_pnl(
     settings = get_settings(db)
     start, end = range_bounds(date_from, date_to)
     invoices = _active_invoices(db, start, end)
-    return _sales_bundle(db, settings, invoices, date_from=date_from or today_shop(), date_to=date_to or today_shop())
+    return _sales_bundle(
+        db,
+        settings,
+        invoices,
+        date_from=date_from or today_shop(),
+        date_to=date_to or today_shop(),
+        start=start,
+        end=end,
+    )
 
 
 @router.get("/categories")
@@ -128,6 +140,8 @@ def category_report(
 def ledger(
     item_id: int | None = None,
     purpose: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
 ):
@@ -141,11 +155,103 @@ def ledger(
         stmt = stmt.where(StockMovement.item_id == item_id)
     if purpose:
         stmt = stmt.where(StockMovement.purpose == purpose)
+    if date_from or date_to:
+        start, end = range_bounds(date_from, date_to)
+        stmt = stmt.where(StockMovement.created_at >= start, StockMovement.created_at < end)
     rows = db.execute(stmt).scalars()
     return [movement_out(m) for m in rows]
 
 
-def _sales_bundle(db: Session, settings, invoices: list[Invoice], date_from: str, date_to: str) -> dict:
+def _writeoffs_by_sku(db: Session, start: str, end: str) -> list[tuple[str, int, str, str]]:
+    rows = db.execute(
+        select(
+            Item.sku,
+            func.coalesce(func.sum(StockMovement.cogs_cents), 0),
+            Item.name,
+            Item.name_id,
+        )
+        .join(Item, Item.id == StockMovement.item_id)
+        .where(
+            StockMovement.purpose.in_(("damage", "supplier_return")),
+            StockMovement.created_at >= start,
+            StockMovement.created_at < end,
+        )
+        .group_by(Item.sku, Item.name, Item.name_id)
+    )
+    return [(str(sku), int(cents or 0), name or sku, name_id or name or sku) for sku, cents, name, name_id in rows]
+
+
+def _purpose_cogs(db: Session, start: str, end: str, purpose: str) -> int:
+    return int(
+        db.scalar(
+            select(func.coalesce(func.sum(StockMovement.cogs_cents), 0)).where(
+                StockMovement.purpose == purpose,
+                StockMovement.created_at >= start,
+                StockMovement.created_at < end,
+            )
+        )
+        or 0
+    )
+
+
+def _collected_payments(db: Session, start: str, end: str) -> tuple[int, int]:
+    total = db.scalar(
+        select(func.coalesce(func.sum(InvoicePayment.amount_cents), 0)).where(
+            InvoicePayment.created_at >= start,
+            InvoicePayment.created_at < end,
+        )
+    )
+    count = db.scalar(
+        select(func.count())
+        .select_from(InvoicePayment)
+        .where(InvoicePayment.created_at >= start, InvoicePayment.created_at < end)
+    )
+    return int(total or 0), int(count or 0)
+
+
+def _voided_invoices(db: Session, start: str, end: str) -> list[Invoice]:
+    return list(
+        db.execute(
+            select(Invoice).where(
+                Invoice.status == "void",
+                Invoice.voided_at.is_not(None),
+                Invoice.voided_at >= start,
+                Invoice.voided_at < end,
+            )
+        ).scalars()
+    )
+
+
+def _collected_invoices(db: Session, start: str, end: str) -> list[Invoice]:
+    return list(
+        db.execute(
+            select(Invoice)
+            .options(
+                selectinload(Invoice.lines),
+                selectinload(Invoice.shopper),
+                selectinload(Invoice.purchase_order),
+                selectinload(Invoice.payments),
+            )
+            .where(
+                Invoice.status == "paid",
+                Invoice.paid_at.is_not(None),
+                Invoice.paid_at >= start,
+                Invoice.paid_at < end,
+            )
+            .order_by(Invoice.paid_at.asc())
+        ).scalars()
+    )
+
+
+def _sales_bundle(
+    db: Session,
+    settings,
+    invoices: list[Invoice],
+    date_from: str,
+    date_to: str,
+    start: str,
+    end: str,
+) -> dict:
     item_acc: dict[str, dict] = defaultdict(
         lambda: {
             "sku": "",
@@ -157,13 +263,55 @@ def _sales_bundle(db: Session, settings, invoices: list[Invoice], date_from: str
             "quantity": 0,
             "revenue_cents": 0,
             "cogs_cents": 0,
+            "writeoff_cents": 0,
         }
     )
     revenue = 0
     cogs = 0
+    cash = 0
+    credit = 0
+    tax = 0
+    subtotal = 0
+    paid_count = 0
+    unpaid_count = 0
+    salespeople: dict[str, dict] = defaultdict(
+        lambda: {"name": "", "receipt_count": 0, "revenue_cents": 0, "cogs_cents": 0, "collected_cents": 0}
+    )
+    customers: dict[int, dict] = defaultdict(
+        lambda: {
+            "shopper_id": 0,
+            "name": "",
+            "phone": "",
+            "receipt_count": 0,
+            "revenue_cents": 0,
+            "cogs_cents": 0,
+            "collected_cents": 0,
+        }
+    )
     for inv in invoices:
         revenue += inv.total_cents
         cogs += inv.cogs_cents or 0
+        tax += inv.tax_cents or 0
+        subtotal += inv.subtotal_cents or 0
+        if inv.status == "paid":
+            cash += inv.total_cents
+            paid_count += 1
+        else:
+            credit += inv.total_cents
+            unpaid_count += 1
+        seller = (inv.salesperson_name or "").strip()
+        sp = salespeople[seller or "_"]
+        sp["name"] = seller
+        sp["receipt_count"] += 1
+        sp["revenue_cents"] += inv.total_cents
+        sp["cogs_cents"] += inv.cogs_cents or 0
+        cust = customers[inv.shopper_id]
+        cust["shopper_id"] = inv.shopper_id
+        cust["name"] = inv.shopper.name if inv.shopper else ""
+        cust["phone"] = inv.shopper.phone if inv.shopper else ""
+        cust["receipt_count"] += 1
+        cust["revenue_cents"] += inv.total_cents
+        cust["cogs_cents"] += inv.cogs_cents or 0
         for ln in inv.lines:
             row = item_acc[ln.sku]
             row["sku"] = ln.sku
@@ -172,6 +320,13 @@ def _sales_bundle(db: Session, settings, invoices: list[Invoice], date_from: str
             row["quantity"] += ln.quantity
             row["revenue_cents"] += ln.line_total_cents
             row["cogs_cents"] += ln.cogs_cents or 0
+
+    for sku, cents, name, name_id in _writeoffs_by_sku(db, start, end):
+        row = item_acc[sku]
+        row["sku"] = sku
+        row["name"] = row["name"] or name
+        row["name_id"] = row["name_id"] or name_id
+        row["writeoff_cents"] += cents
 
     meta = _sku_meta(db, set(item_acc))
     items = []
@@ -183,6 +338,7 @@ def _sales_bundle(db: Session, settings, invoices: list[Invoice], date_from: str
             "quantity": 0,
             "revenue_cents": 0,
             "cogs_cents": 0,
+            "writeoff_cents": 0,
         }
     )
     for sku, row in item_acc.items():
@@ -194,9 +350,14 @@ def _sales_bundle(db: Session, settings, invoices: list[Invoice], date_from: str
         else:
             row["category_name"] = row["category_name"] or "Uncategorized"
             row["category_name_id"] = row["category_name_id"] or "Tanpa kategori"
+        row["quantity"] = from_store(row["quantity"])
         profit = row["revenue_cents"] - row["cogs_cents"]
+        writeoff = row.get("writeoff_cents", 0)
+        row["writeoff_cents"] = writeoff
         row["profit_cents"] = profit
         row["margin_bps"] = _margin_bps(profit, row["revenue_cents"])
+        row["adjusted_profit_cents"] = profit - writeoff
+        row["adjusted_margin_bps"] = _margin_bps(profit - writeoff, row["revenue_cents"])
         items.append(row)
         key = str(row["category_id"] or "none")
         cat = cat_acc[key]
@@ -206,28 +367,91 @@ def _sales_bundle(db: Session, settings, invoices: list[Invoice], date_from: str
         cat["quantity"] += row["quantity"]
         cat["revenue_cents"] += row["revenue_cents"]
         cat["cogs_cents"] += row["cogs_cents"]
+        cat["writeoff_cents"] += row.get("writeoff_cents", 0)
 
     categories = []
     for cat in cat_acc.values():
         profit = cat["revenue_cents"] - cat["cogs_cents"]
+        writeoff = cat.get("writeoff_cents", 0)
+        cat["writeoff_cents"] = writeoff
         cat["profit_cents"] = profit
         cat["margin_bps"] = _margin_bps(profit, cat["revenue_cents"])
+        cat["adjusted_profit_cents"] = profit - writeoff
+        cat["adjusted_margin_bps"] = _margin_bps(profit - writeoff, cat["revenue_cents"])
         categories.append(cat)
+
+    pay_rows = list(
+        db.execute(
+            select(InvoicePayment)
+            .options(
+                selectinload(InvoicePayment.invoice).selectinload(Invoice.shopper),
+            )
+            .where(InvoicePayment.created_at >= start, InvoicePayment.created_at < end)
+        ).scalars()
+    )
+    for pay in pay_rows:
+        inv = pay.invoice
+        if inv is None or inv.status == "void":
+            continue
+        seller = (inv.salesperson_name or "").strip()
+        sp = salespeople[seller or "_"]
+        sp["name"] = seller
+        sp["collected_cents"] += pay.amount_cents
+        cust = customers[inv.shopper_id]
+        cust["shopper_id"] = inv.shopper_id
+        cust["name"] = inv.shopper.name if inv.shopper else cust["name"]
+        cust["phone"] = inv.shopper.phone if inv.shopper else cust["phone"]
+        cust["collected_cents"] += pay.amount_cents
 
     items.sort(key=lambda r: r["revenue_cents"], reverse=True)
     categories.sort(key=lambda r: r["revenue_cents"], reverse=True)
+
+    def _close(rows: list[dict]) -> list[dict]:
+        out = []
+        for row in rows:
+            profit_row = row["revenue_cents"] - row["cogs_cents"]
+            row["profit_cents"] = profit_row
+            row["margin_bps"] = _margin_bps(profit_row, row["revenue_cents"])
+            out.append(row)
+        out.sort(key=lambda r: r["revenue_cents"], reverse=True)
+        return out
+
     profit = revenue - cogs
+    collected_cents, collected_count = _collected_payments(db, start, end)
+    damage = _purpose_cogs(db, start, end, "damage")
+    supplier_return = _purpose_cogs(db, start, end, "supplier_return")
+    writeoffs = damage + supplier_return
+    voided = _voided_invoices(db, start, end)
+    adjusted = profit - writeoffs
     return {
         "date_from": date_from,
         "date_to": date_to,
         "currency_symbol": settings.currency_symbol or "Rp",
         "currency_code": "IDR",
         "receipt_count": len(invoices),
+        "paid_count": paid_count,
+        "unpaid_count": unpaid_count,
         "revenue_cents": revenue,
+        "subtotal_cents": subtotal,
+        "tax_cents": tax,
+        "tax_bps": settings.tax_rate_bps,
+        "cash_cents": cash,
+        "credit_cents": credit,
+        "collected_cents": collected_cents,
+        "collected_count": collected_count,
         "cogs_cents": cogs,
         "profit_cents": profit,
         "margin_bps": _margin_bps(profit, revenue),
+        "damage_cents": damage,
+        "supplier_return_cents": supplier_return,
+        "writeoff_cents": writeoffs,
+        "adjusted_profit_cents": adjusted,
+        "adjusted_margin_bps": _margin_bps(adjusted, revenue),
+        "voided_cents": sum(inv.total_cents for inv in voided),
+        "voided_count": len(voided),
         "receipts": [invoice_out(inv) for inv in invoices],
         "items": items,
         "categories": categories,
+        "salespeople": _close(list(salespeople.values())),
+        "customers": _close(list(customers.values())),
     }

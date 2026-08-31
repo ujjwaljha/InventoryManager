@@ -28,6 +28,7 @@ class CategoryOut(BaseModel):
 
 class LocationIn(BaseModel):
     name: str = Field(min_length=1)
+    name_id: str = ""
 
 
 class LocationOut(BaseModel):
@@ -43,9 +44,9 @@ class ItemIn(BaseModel):
     description_id: str = ""
     category_id: int | None = None
     location_id: int | None = None
-    quantity: int = Field(default=0, ge=0)
+    quantity: float = Field(default=0, ge=0)
     unit: str = "ea"
-    reorder_point: int = Field(default=0, ge=0)
+    reorder_point: float = Field(default=0, ge=0)
     unit_cost_cents: int = Field(default=0, ge=0)
     unit_price_cents: int = Field(default=0, ge=0)
     notes: str = ""
@@ -60,7 +61,7 @@ class ItemPatch(BaseModel):
     category_id: int | None = None
     location_id: int | None = None
     unit: str | None = None
-    reorder_point: int | None = Field(default=None, ge=0)
+    reorder_point: float | None = Field(default=None, ge=0)
     unit_cost_cents: int | None = Field(default=None, ge=0)
     unit_price_cents: int | None = Field(default=None, ge=0)
     notes: str | None = None
@@ -79,9 +80,11 @@ class ItemOut(BaseModel):
     location_id: int | None
     location_name: str | None
     location_name_id: str | None = None
-    quantity: int
+    quantity: float
+    available: float | None = None
+    reserved: float = 0
     unit: str
-    reorder_point: int
+    reorder_point: float
     unit_cost_cents: int
     fifo_cogs_cents: int = 0
     inventory_value_cents: int = 0
@@ -95,7 +98,7 @@ class ItemOut(BaseModel):
 
 class MovementIn(BaseModel):
     kind: str
-    quantity: int = Field(ge=0)
+    quantity: float = Field(ge=0)
     reason: str = ""
     purpose: str = ""
     unit_cost_cents: int | None = Field(default=None, ge=0)
@@ -109,8 +112,8 @@ class MovementOut(BaseModel):
     item_name_id: str | None = None
     kind: str
     purpose: str = ""
-    quantity_delta: int
-    quantity_after: int
+    quantity_delta: float
+    quantity_after: float
     reason: str
     cogs_cents: int = 0
     unit_cost_cents: int = 0
@@ -124,7 +127,8 @@ class MovementOut(BaseModel):
 
 class PoLineIn(BaseModel):
     item_id: int
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
+    increment: bool = False
 
 
 class PoLineOut(BaseModel):
@@ -133,15 +137,17 @@ class PoLineOut(BaseModel):
     sku: str
     name: str
     name_id: str = ""
-    quantity: int
+    quantity: float
+    unit: str = "ea"
     unit_price_cents: int
     line_total_cents: int
-    available: int | None = None
+    available: float | None = None
 
 
 class PlaceIn(BaseModel):
     note: str = ""
     salesperson_name: str = ""
+    paid: bool = True
 
 
 class InvoiceLineOut(BaseModel):
@@ -149,7 +155,8 @@ class InvoiceLineOut(BaseModel):
     sku: str
     name: str
     name_id: str = ""
-    quantity: int
+    quantity: float
+    unit: str = "ea"
     unit_price_cents: int
     line_total_cents: int
     cogs_cents: int = 0
@@ -178,6 +185,9 @@ class InvoiceOut(BaseModel):
     issued_at: str
     paid_at: str | None
     voided_at: str | None
+    due_date: str | None = None
+    amount_paid_cents: int = 0
+    balance_cents: int = 0
     lines: list[InvoiceLineOut]
 
 
@@ -219,6 +229,11 @@ class SettingsIn(BaseModel):
     currency_code: str | None = None
     invoice_prefix: str | None = None
     po_prefix: str | None = None
+    restock_prefix: str | None = None
+    damage_prefix: str | None = None
+    return_prefix: str | None = None
+    credit_days: int | None = Field(default=None, ge=0, le=365)
+    allow_lan: bool | None = None
 
 
 class SettingsOut(BaseModel):
@@ -239,6 +254,34 @@ class SettingsOut(BaseModel):
     return_prefix: str = "RTN"
     next_return_seq: int = 1
     shop_today: str = ""
+    pin_set: bool = False
+    allow_lan: bool = False
+    credit_days: int = 30
+
+
+class PinIn(BaseModel):
+    pin: str = Field(min_length=4, max_length=16)
+    current_pin: str = ""
+
+
+class UnlockIn(BaseModel):
+    pin: str = Field(min_length=4, max_length=16)
+
+
+class PaymentIn(BaseModel):
+    amount_cents: int = Field(gt=0)
+    note: str = ""
+
+
+class InvoiceDueIn(BaseModel):
+    due_date: str = Field(min_length=8)
+
+
+class CreditNoteIn(BaseModel):
+    shopper_id: int
+    invoice_id: int | None = None
+    body: str = Field(min_length=1, max_length=500)
+    promised_date: str | None = None
 
 
 class Shortage(BaseModel):
@@ -246,13 +289,14 @@ class Shortage(BaseModel):
     sku: str
     name: str
     name_id: str = ""
-    requested: int
-    available: int
+    requested: float
+    available: float
 
 
 class DashboardOut(BaseModel):
     sku_count: int
-    units_on_hand: int
+    units_on_hand: float
+    units_reserved: float = 0
     low_stock_count: int
     draft_po_count: int
     today_order_count: int
@@ -260,6 +304,9 @@ class DashboardOut(BaseModel):
     currency_symbol: str
     currency_code: str = "IDR"
     shop_name: str
+    unpaid_count: int = 0
+    unpaid_cents: int = 0
+    promises_due_count: int = 0
     low_stock_items: list[ItemOut]
     recent_movements: list[MovementOut]
 
@@ -272,7 +319,7 @@ class SupplierIn(BaseModel):
 
 class RestockLineIn(BaseModel):
     item_id: int
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
     unit_cost_cents: int = Field(ge=0)
 
 
@@ -285,7 +332,7 @@ class RestockCreateIn(BaseModel):
 
 class OfficeLineIn(BaseModel):
     item_id: int
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
 
 
 class DamageIn(BaseModel):
@@ -306,5 +353,6 @@ class TillSaleIn(BaseModel):
     customer_name: str = Field(min_length=1)
     customer_phone: str = Field(min_length=6)
     note: str = ""
+    paid: bool = False
     lines: list[OfficeLineIn]
 

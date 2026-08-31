@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     Invoice,
     InvoiceLine,
+    InvoicePayment,
     Item,
     PurchaseOrder,
     PurchaseOrderLine,
@@ -13,8 +14,9 @@ from app.models import (
     Shopper,
     StockMovement,
 )
+from app.qty import from_store, money_qty
 from app.services.stock import apply_movement, restore_outbound
-from app.timeutil import utcnow
+from app.timeutil import add_shop_days, today_shop, utcnow
 
 
 class ShortageError(Exception):
@@ -85,24 +87,107 @@ def load_po(db: Session, po_id: int) -> PurchaseOrder | None:
             selectinload(PurchaseOrder.shopper),
             selectinload(PurchaseOrder.invoice).selectinload(Invoice.lines),
             selectinload(PurchaseOrder.invoice).selectinload(Invoice.shopper),
+            selectinload(PurchaseOrder.invoice).selectinload(Invoice.payments),
         )
         .where(PurchaseOrder.id == po_id)
     ).scalar_one_or_none()
 
 
 def get_draft(db: Session, shopper_id: int) -> PurchaseOrder | None:
-    return db.execute(
-        select(PurchaseOrder)
-        .options(
-            selectinload(PurchaseOrder.lines).selectinload(PurchaseOrderLine.item),
-            selectinload(PurchaseOrder.shopper),
-            selectinload(PurchaseOrder.invoice),
+    rows = list(
+        db.execute(
+            select(PurchaseOrder)
+            .options(
+                selectinload(PurchaseOrder.lines).selectinload(PurchaseOrderLine.item),
+                selectinload(PurchaseOrder.shopper),
+                selectinload(PurchaseOrder.invoice),
+            )
+            .where(
+                PurchaseOrder.shopper_id == shopper_id,
+                PurchaseOrder.status == "draft",
+            )
+            .order_by(PurchaseOrder.updated_at.desc(), PurchaseOrder.id.desc())
+        ).scalars()
+    )
+    if not rows:
+        return None
+    with_lines = [po for po in rows if po.lines]
+    return with_lines[0] if with_lines else rows[0]
+
+
+def draft_reserved(
+    db: Session,
+    item_ids: list[int] | None = None,
+    exclude_po_id: int | None = None,
+    exclude_shopper_id: int | None = None,
+) -> dict[int, int]:
+    """Qty sitting in other (or all) draft carts, keyed by item_id."""
+    stmt = (
+        select(PurchaseOrderLine.item_id, func.coalesce(func.sum(PurchaseOrderLine.quantity), 0))
+        .join(PurchaseOrder, PurchaseOrderLine.purchase_order_id == PurchaseOrder.id)
+        .where(PurchaseOrder.status == "draft")
+        .group_by(PurchaseOrderLine.item_id)
+    )
+    if item_ids:
+        stmt = stmt.where(PurchaseOrderLine.item_id.in_(item_ids))
+    if exclude_po_id is not None:
+        stmt = stmt.where(PurchaseOrder.id != exclude_po_id)
+    if exclude_shopper_id is not None:
+        stmt = stmt.where(PurchaseOrder.shopper_id != exclude_shopper_id)
+    return {int(item_id): int(qty) for item_id, qty in db.execute(stmt)}
+
+
+def sellable_qty(
+    db: Session,
+    item: Item,
+    exclude_po_id: int | None = None,
+    exclude_shopper_id: int | None = None,
+) -> int:
+    reserved = draft_reserved(
+        db, [item.id], exclude_po_id=exclude_po_id, exclude_shopper_id=exclude_shopper_id
+    ).get(item.id, 0)
+    return max(0, item.quantity - reserved)
+
+
+def require_sellable(
+    db: Session,
+    item: Item,
+    quantity: int,
+    exclude_po_id: int | None = None,
+    exclude_shopper_id: int | None = None,
+) -> None:
+    available = sellable_qty(
+        db, item, exclude_po_id=exclude_po_id, exclude_shopper_id=exclude_shopper_id
+    )
+    if available < quantity:
+        raise ShortageError(
+            [
+                {
+                    "item_id": item.id,
+                    "sku": item.sku,
+                    "name": item.name,
+                    "name_id": item.name_id or item.name,
+                    "requested": from_store(quantity),
+                    "available": from_store(available),
+                }
+            ]
         )
-        .where(
-            PurchaseOrder.shopper_id == shopper_id,
-            PurchaseOrder.status == "draft",
-        )
-    ).scalar_one_or_none()
+
+
+def abandon_drafts(db: Session, shopper_id: int) -> int:
+    rows = list(
+        db.execute(
+            select(PurchaseOrder).where(
+                PurchaseOrder.shopper_id == shopper_id,
+                PurchaseOrder.status == "draft",
+            )
+        ).scalars()
+    )
+    for po in rows:
+        db.delete(po)
+    if rows:
+        db.flush()
+    return len(rows)
 
 
 def get_or_create_draft(db: Session, shopper_id: int) -> PurchaseOrder:
@@ -123,7 +208,13 @@ def get_or_create_draft(db: Session, shopper_id: int) -> PurchaseOrder:
     return load_po(db, po.id) or po
 
 
-def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> PurchaseOrder:
+def upsert_line(
+    db: Session,
+    po: PurchaseOrder,
+    item_id: int,
+    quantity: int,
+    ignore_own_holds: bool = False,
+) -> PurchaseOrder:
     if po.status != "draft":
         raise CheckoutError("Only a draft purchase order can be edited")
     item = db.get(Item, item_id)
@@ -131,7 +222,13 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
         raise CheckoutError("Item is not available", 404)
     if quantity <= 0:
         raise CheckoutError("Quantity must be greater than 0")
-    if item.quantity < quantity:
+    available = sellable_qty(
+        db,
+        item,
+        exclude_po_id=None if ignore_own_holds else po.id,
+        exclude_shopper_id=po.shopper_id if ignore_own_holds else None,
+    )
+    if available < quantity:
         raise ShortageError(
             [
                 {
@@ -139,8 +236,8 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
                     "sku": item.sku,
                     "name": item.name,
                     "name_id": item.name_id or item.name,
-                    "requested": quantity,
-                    "available": item.quantity,
+                    "requested": from_store(quantity),
+                    "available": from_store(available),
                 }
             ]
         )
@@ -185,7 +282,7 @@ def remove_line(db: Session, po: PurchaseOrder, item_id: int) -> PurchaseOrder:
 
 
 def line_total(quantity: int, unit_price_cents: int) -> int:
-    return quantity * unit_price_cents
+    return money_qty(quantity, unit_price_cents)
 
 
 def compute_tax_cents(subtotal: int, tax_bps: int) -> int:
@@ -210,6 +307,13 @@ def create_fresh_draft(db: Session, shopper_id: int) -> PurchaseOrder:
     return loaded
 
 
+def begin_immediate(db: Session) -> None:
+    """Take a SQLite reserved lock so two places cannot both pass the stock check."""
+    if db.get_bind().dialect.name != "sqlite":
+        return
+    db.execute(text("UPDATE shop_settings SET id = 1 WHERE id = 1"))
+
+
 def place_order(
     db: Session,
     po: PurchaseOrder,
@@ -217,6 +321,7 @@ def place_order(
     salesperson_name: str = "",
 ) -> tuple[PurchaseOrder, Invoice]:
     """Place a draft PO: FIFO stock out every line and raise an invoice in one transaction."""
+    begin_immediate(db)
     if po.status != "draft":
         raise CheckoutError("Only a draft purchase order can be placed")
     if not list(po.lines):
@@ -238,7 +343,7 @@ def place_order(
                     "sku": line.sku,
                     "name": line.name,
                     "name_id": line.name_id or line.name,
-                    "requested": line.quantity,
+                    "requested": from_store(line.quantity),
                     "available": 0,
                 }
             )
@@ -251,8 +356,8 @@ def place_order(
                     "sku": item.sku,
                     "name": item.name,
                     "name_id": item.name_id or item.name,
-                    "requested": line.quantity,
-                    "available": item.quantity,
+                    "requested": from_store(line.quantity),
+                    "available": from_store(item.quantity),
                 }
             )
     if shortages:
@@ -297,6 +402,7 @@ def place_order(
         currency_symbol="Rp",
         salesperson_name=(salesperson_name or "").strip(),
         issued_at=now,
+        due_date=add_shop_days(today_shop(), int(getattr(settings, "credit_days", 30) or 0)),
     )
     db.add(invoice)
     db.flush()
@@ -309,6 +415,7 @@ def place_order(
                 name=line.name,
                 name_id=line.name_id or line.name,
                 quantity=line.quantity,
+                unit=live_items[line.item_id].unit or "ea",
                 unit_price_cents=line.unit_price_cents,
                 line_total_cents=line_total(line.quantity, line.unit_price_cents),
                 cogs_cents=mov.cogs_cents,
@@ -378,12 +485,63 @@ def cancel_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
     return loaded
 
 
+def paid_cents(invoice: Invoice) -> int:
+    return sum(p.amount_cents for p in (invoice.payments or []))
+
+
+def balance_cents(invoice: Invoice) -> int:
+    return max(0, invoice.total_cents - paid_cents(invoice))
+
+
+def apply_payment(db: Session, invoice: Invoice, amount_cents: int, note: str = "") -> Invoice:
+    if invoice.status == "void":
+        raise CheckoutError("Void invoices cannot take payment")
+    if invoice.status == "paid":
+        raise CheckoutError("Invoice is already paid")
+    remaining = balance_cents(invoice)
+    if amount_cents <= 0:
+        raise CheckoutError("Payment must be greater than 0")
+    if amount_cents > remaining:
+        raise CheckoutError("Payment is more than the remaining balance")
+    db.add(
+        InvoicePayment(
+            invoice_id=invoice.id,
+            amount_cents=amount_cents,
+            note=(note or "").strip(),
+            created_at=utcnow(),
+        )
+    )
+    if amount_cents == remaining:
+        invoice.status = "paid"
+        invoice.paid_at = utcnow()
+    db.flush()
+    db.expire(invoice, ["payments"])
+    return invoice
+
+
 def mark_paid(db: Session, invoice: Invoice) -> Invoice:
     if invoice.status != "issued":
         raise CheckoutError("Only an issued invoice can be marked paid")
-    invoice.status = "paid"
-    invoice.paid_at = utcnow()
+    remaining = balance_cents(invoice)
+    if remaining <= 0:
+        invoice.status = "paid"
+        invoice.paid_at = invoice.paid_at or utcnow()
+        db.flush()
+        return invoice
+    return apply_payment(db, invoice, remaining, note="Paid in full")
+
+
+def mark_unpaid(db: Session, invoice: Invoice) -> Invoice:
+    if invoice.status == "void":
+        raise CheckoutError("Void invoices cannot be unpaid")
+    if invoice.status != "paid" and not invoice.payments:
+        raise CheckoutError("Only a paid or partly paid invoice can be marked unpaid")
+    for payment in list(invoice.payments or []):
+        db.delete(payment)
+    invoice.status = "issued"
+    invoice.paid_at = None
     db.flush()
+    db.expire(invoice, ["payments"])
     return invoice
 
 

@@ -1,10 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { IdentifyForm } from "../components/ui";
 import { useI18n } from "../i18n";
-import { money, unitLabel } from "../money";
-import type { Item, PurchaseOrder, Shopper } from "../types";
+import { formatQty, money, qtyStep, unitLabel } from "../money";
+import type { Item, PurchaseOrder, Shopper, Shortage } from "../types";
+
+function flyAddToOrder(from: HTMLElement, label: string) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const origin = from.getBoundingClientRect();
+  const dest = [...document.querySelectorAll<HTMLElement>("[data-order-target]")].find(
+    (el) => el.getClientRects().length > 0,
+  );
+  const startX = origin.left + origin.width / 2;
+  const startY = origin.top + origin.height / 2;
+  let endX = window.innerWidth / 2;
+  let endY = window.innerHeight - 28;
+  if (dest) {
+    const box = dest.getBoundingClientRect();
+    endX = box.left + box.width / 2;
+    endY = box.top + box.height / 2;
+  }
+  const chip = document.createElement("div");
+  chip.className = "add-fly";
+  chip.textContent = label;
+  chip.style.left = `${startX}px`;
+  chip.style.top = `${startY}px`;
+  chip.style.setProperty("--dx", `${endX - startX}px`);
+  chip.style.setProperty("--dy", `${endY - startY}px`);
+  document.body.appendChild(chip);
+  chip.addEventListener("animationend", () => chip.remove());
+}
 
 export function ShopHome({
   shopper,
@@ -22,10 +48,63 @@ export function ShopHome({
   const [error, setError] = useState("");
   const [identify, setIdentify] = useState(false);
   const [pendingItem, setPendingItem] = useState<Item | null>(null);
+  const [inCart, setInCart] = useState<Record<number, number>>({});
+  const [justAdded, setJustAdded] = useState<Record<number, number>>({});
+  const [adding, setAdding] = useState<Record<number, boolean>>({});
+  const addedTimers = useRef<Record<number, number>>({});
+  const skipNextCartLoad = useRef(false);
 
   useEffect(() => {
     api<Item[]>("/api/shop/catalog").then(setItems).catch((e) => setError(String(e.message)));
   }, []);
+
+  useEffect(() => {
+    if (!shopper) {
+      setInCart({});
+      return;
+    }
+    if (skipNextCartLoad.current) {
+      skipNextCartLoad.current = false;
+      return;
+    }
+    api<PurchaseOrder>("/api/shop/po")
+      .then((po) => {
+        const next: Record<number, number> = {};
+        for (const ln of po.lines) next[ln.item_id] = ln.quantity;
+        setInCart(next);
+      })
+      .catch(() => undefined);
+  }, [shopper]);
+
+  useEffect(() => {
+    return () => {
+      for (const id of Object.keys(addedTimers.current)) {
+        window.clearTimeout(addedTimers.current[Number(id)]);
+      }
+    };
+  }, []);
+
+  function markAdded(item: Item, from?: HTMLElement | null) {
+    const step = qtyStep(item.unit);
+    setInCart((cur) => ({ ...cur, [item.id]: (cur[item.id] || 0) + step }));
+    setJustAdded((cur) => {
+      const next = { ...cur };
+      delete next[item.id];
+      return next;
+    });
+    requestAnimationFrame(() => {
+      setJustAdded((cur) => ({ ...cur, [item.id]: Date.now() }));
+    });
+    window.clearTimeout(addedTimers.current[item.id]);
+    addedTimers.current[item.id] = window.setTimeout(() => {
+      setJustAdded((cur) => {
+        const next = { ...cur };
+        delete next[item.id];
+        return next;
+      });
+    }, 700);
+    if (from) flyAddToOrder(from, `+${formatQty(step)}`);
+  }
 
   const categories = useMemo(() => {
     const map = new Map<number, string>();
@@ -51,18 +130,20 @@ export function ShopHome({
   });
   shown.sort((a, b) => pick(a.name, a.name_id).localeCompare(pick(b.name, b.name_id), locale === "id" ? "id" : "en"));
 
-  async function add(item: Item) {
+  async function add(item: Item, from?: HTMLElement | null) {
     setError("");
     if (!shopper) {
       setPendingItem(item);
       setIdentify(true);
       return;
     }
+    setAdding((cur) => ({ ...cur, [item.id]: true }));
     try {
       await api("/api/shop/po/lines", {
         method: "POST",
-        body: JSON.stringify({ item_id: item.id, quantity: 1 }),
+        body: JSON.stringify({ item_id: item.id, quantity: qtyStep(item.unit), increment: true }),
       });
+      markAdded(item, from);
       onCartChange();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -71,6 +152,8 @@ export function ShopHome({
         return;
       }
       setError(e instanceof Error ? e.message : t("couldNotAdd"));
+    } finally {
+      setAdding((cur) => ({ ...cur, [item.id]: false }));
     }
   }
 
@@ -79,13 +162,16 @@ export function ShopHome({
       method: "POST",
       body: JSON.stringify({ name, phone }),
     });
+    skipNextCartLoad.current = true;
     onIdentified(s);
     setIdentify(false);
     if (pendingItem) {
       await api("/api/shop/po/lines", {
         method: "POST",
-        body: JSON.stringify({ item_id: pendingItem.id, quantity: 1 }),
+        body: JSON.stringify({ item_id: pendingItem.id, quantity: qtyStep(pendingItem.unit), increment: true }),
       });
+      const from = document.querySelector<HTMLElement>(`[data-add-id="${pendingItem.id}"]`);
+      markAdded(pendingItem, from);
       setPendingItem(null);
       onCartChange();
     }
@@ -105,7 +191,15 @@ export function ShopHome({
         ))}
       </div>
       {error && <div className="banner">{error}</div>}
-      {identify && <IdentifyForm onDone={identifyAndAdd} />}
+      {identify && (
+        <IdentifyForm
+          onDone={identifyAndAdd}
+          onCancel={() => {
+            setIdentify(false);
+            setPendingItem(null);
+          }}
+        />
+      )}
       <div className="cards">
         {shown.map((item) => (
           <article className="card" key={item.id}>
@@ -117,15 +211,27 @@ export function ShopHome({
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
                 <div className="price">{money(item.unit_price_cents)}</div>
-                <div className={`stock ${item.quantity === 0 ? "out" : item.low_stock ? "low" : ""}`}>
-                  {item.quantity === 0
+                <div className={`stock ${(item.available ?? item.quantity) === 0 ? "out" : item.low_stock ? "low" : ""}`}>
+                  {(item.available ?? item.quantity) === 0
                     ? t("soldOut")
-                    : t("inStock", { qty: item.quantity, unit: unitLabel(item.unit, locale) })}
+                    : t("inStock", { qty: formatQty(item.available ?? item.quantity), unit: unitLabel(item.unit, locale) })}
                 </div>
               </div>
-              <button className="btn" disabled={item.quantity < 1} onClick={() => add(item)}>
-                {t("add")}
-              </button>
+              <div className="add-wrap">
+                <button
+                  className={`btn add-btn${adding[item.id] ? " adding" : ""}${justAdded[item.id] ? " just-added" : ""}`}
+                  data-add-id={item.id}
+                  disabled={(item.available ?? item.quantity) < qtyStep(item.unit)}
+                  onClick={(e) => add(item, e.currentTarget)}
+                >
+                  {justAdded[item.id] ? t("added") : t("add")}
+                </button>
+                {inCart[item.id] ? (
+                  <div className={`in-order${justAdded[item.id] ? " pop" : ""}`}>
+                    {t("inOrder", { qty: formatQty(inCart[item.id]), unit: unitLabel(item.unit, locale) })}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </article>
         ))}
@@ -143,11 +249,20 @@ export function ShopCart({
   onIdentified: (s: Shopper) => void;
   onCartChange: () => void;
 }) {
-  const { t, pick } = useI18n();
+  const { t, pick, locale } = useI18n();
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [shortages, setShortages] = useState<Shortage[]>([]);
+  const [paidNow, setPaidNow] = useState(true);
+  const [salesperson, setSalesperson] = useState(() => {
+    try {
+      return localStorage.getItem("im_salesperson") || "";
+    } catch {
+      return "";
+    }
+  });
   const navigate = useNavigate();
 
   async function load() {
@@ -179,32 +294,47 @@ export function ShopCart({
     } catch (e) {
       if (e instanceof ApiError && e.shortages.length) {
         const s = e.shortages[0];
-        setError(t("onlyLeft", { name: pick(s.name, s.name_id), available: s.available }));
+        setError(t("onlyLeft", { name: pick(s.name, s.name_id), available: formatQty(s.available) }));
       } else {
         setError(e instanceof Error ? e.message : t("updateFailed"));
       }
     }
   }
 
-  async function place() {
+  async function trimToStock() {
     setBusy(true);
     setError("");
     try {
+      for (const s of shortages) {
+        await setQty(s.item_id, s.available);
+      }
+      setShortages([]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function place() {
+    setBusy(true);
+    setError("");
+    setShortages([]);
+    try {
       const placed = await api<PurchaseOrder>("/api/shop/po/place", {
         method: "POST",
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ note, paid: paidNow, salesperson_name: salesperson }),
       });
       onCartChange();
       if (placed.invoice) navigate(`/shop/invoices/${placed.invoice.id}`);
     } catch (e) {
       if (e instanceof ApiError && e.shortages.length) {
+        setShortages(e.shortages);
         setError(
           e.shortages
             .map((s) =>
               t("shortageLine", {
                 name: pick(s.name, s.name_id),
-                requested: s.requested,
-                available: s.available,
+                requested: formatQty(s.requested),
+                available: formatQty(s.available),
               }),
             )
             .join(" · "),
@@ -244,6 +374,33 @@ export function ShopCart({
       <div>
         <div className="sku">{t("purchaseOrder")}</div>
         <h2 style={{ margin: "4px 0 12px" }}>{po.number}</h2>
+        {shopper ? (
+          <p className="muted">
+            {t("customer")}: {shopper.name} · {shopper.phone}
+          </p>
+        ) : null}
+        <button
+          className="btn ghost"
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm(t("confirmEmptyCart"))) return;
+            setBusy(true);
+            setError("");
+            try {
+              const next = await api<PurchaseOrder>("/api/shop/po/abandon", { method: "POST" });
+              setPo(next);
+              setShortages([]);
+              onCartChange();
+            } catch (e) {
+              setError(e instanceof Error ? e.message : t("updateFailed"));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {t("emptyCart")}
+        </button>
       </div>
       {error && <div className="banner">{error}</div>}
       {po.lines.map((ln) => (
@@ -252,16 +409,16 @@ export function ShopCart({
             <b>{pick(ln.name, ln.name_id)}</b>
             <div className="sku">{ln.sku}</div>
             <div className="muted">
-              {money(ln.unit_price_cents, po.currency_symbol)} {t("each")}
+              {money(ln.unit_price_cents, po.currency_symbol)} / {unitLabel(ln.unit || "ea", locale)}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div className="stepper">
-              <button className="icon-btn" onClick={() => setQty(ln.item_id, ln.quantity - 1)}>
+              <button className="icon-btn" onClick={() => setQty(ln.item_id, Math.round((ln.quantity - qtyStep(ln.unit || "ea")) * 1000) / 1000)}>
                 −
               </button>
-              <b>{ln.quantity}</b>
-              <button className="icon-btn" onClick={() => setQty(ln.item_id, ln.quantity + 1)}>
+              <b>{formatQty(ln.quantity)}</b>
+              <button className="icon-btn" onClick={() => setQty(ln.item_id, Math.round((ln.quantity + qtyStep(ln.unit || "ea")) * 1000) / 1000)}>
                 +
               </button>
             </div>
@@ -269,6 +426,23 @@ export function ShopCart({
           </div>
         </div>
       ))}
+      <label className="muted">
+        {t("salesperson")}
+        <input
+          className="search"
+          style={{ marginTop: 6 }}
+          value={salesperson}
+          onChange={(e) => {
+            setSalesperson(e.target.value);
+            try {
+              localStorage.setItem("im_salesperson", e.target.value);
+            } catch {
+              /* ignore */
+            }
+          }}
+          placeholder={t("salespersonPlaceholder")}
+        />
+      </label>
       <label className="muted">
         {t("noteForShop")}
         <input className="search" style={{ marginTop: 6 }} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -288,7 +462,16 @@ export function ShopCart({
           <b>{t("total")}</b>
           <b className="price">{money(po.total_cents, po.currency_symbol)}</b>
         </div>
+        <label className="row" style={{ gap: 8, margin: "8px 0" }}>
+          <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} />
+          {paidNow ? t("paidNow") : t("creditSale")}
+        </label>
         <p className="muted">{t("placeHint")}</p>
+        {shortages.length > 0 && (
+          <button className="btn ghost block" type="button" disabled={busy} onClick={trimToStock}>
+            {t("trimToStock")}
+          </button>
+        )}
         <button className="btn terra block" disabled={busy} onClick={place}>
           {busy ? t("placing") : t("placeOrder")}
         </button>

@@ -25,16 +25,16 @@ jobs:
           npm run build
       - name: Install Python and PyInstaller
         run: python -m pip install -r requirements-build.txt
-      - name: Build Warung Pojok.exe
+      - name: Build Toko Bangunan Makmur.exe
         run: python -m PyInstaller --noconfirm --clean warung.spec
       - name: Zip Windows app
         shell: pwsh
         run: |
-          Compress-Archive -Path "dist\Warung Pojok" -DestinationPath "Warung-Pojok-Windows.zip"
+          Compress-Archive -Path "dist\Toko Bangunan Makmur" -DestinationPath "Toko-Bangunan-Makmur-Windows.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: Warung-Pojok-Windows
-          path: Warung-Pojok-Windows.zip
+          name: Toko-Bangunan-Makmur-Windows
+          path: Toko-Bangunan-Makmur-Windows.zip
 
   macos:
     runs-on: macos-latest
@@ -53,11 +53,11 @@ jobs:
           npm run build
       - name: Install Python and PyInstaller
         run: python -m pip install -r requirements-build.txt
-      - name: Build Warung Pojok.app
+      - name: Build Toko Bangunan Makmur.app
         run: python -m PyInstaller --noconfirm --clean warung.spec
       - name: Zip macOS app
-        run: ditto -c -k --keepParent "dist/Warung Pojok.app" Warung-Pojok-macOS.zip
+        run: ditto -c -k --keepParent "dist/Toko Bangunan Makmur.app" Toko-Bangunan-Makmur-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: Warung-Pojok-macOS
-          path: Warung-Pojok-macOS.zip
+          name: Toko-Bangunan-Makmur-macOS
+          path: Toko-Bangunan-Makmur-macOS.zip

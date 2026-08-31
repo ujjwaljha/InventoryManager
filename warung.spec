@@ -7,7 +7,7 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = Path(SPECPATH)
-APP_NAME = "Warung Pojok"
+APP_NAME = "Toko Bangunan Makmur"
 
 datas = [(str(ROOT / "frontend" / "dist"), "frontend/dist")]
 binaries = []
@@ -111,6 +111,6 @@ if sys.platform == "darwin":
             "CFBundleDisplayName": APP_NAME,
             "CFBundleShortVersionString": "1.0.0",
             "NSHighResolutionCapable": True,
-            "NSLocalNetworkUsageDescription": "Warung Pojok shares the shop with phones on the same Wi-Fi.",
+            "NSLocalNetworkUsageDescription": "Toko Bangunan Makmur shares the shop with phones on the same Wi-Fi.",
         },
     )

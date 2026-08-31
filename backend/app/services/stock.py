@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Item, LotConsumption, StockLot, StockMovement
+from app.qty import SCALE, from_store, money_qty
 from app.timeutil import utcnow
 
 
@@ -18,10 +19,10 @@ def lot_stats(item: Item) -> tuple[int, int]:
     """Weighted FIFO unit COGS and inventory value of remaining lots."""
     remaining = [lot for lot in (item.lots or []) if lot.qty_remaining > 0]
     qty = sum(lot.qty_remaining for lot in remaining)
-    value = sum(lot.qty_remaining * lot.unit_cost_cents for lot in remaining)
+    value = sum(money_qty(lot.qty_remaining, lot.unit_cost_cents) for lot in remaining)
     if qty <= 0:
         return item.unit_cost_cents, 0
-    return value // qty, value
+    return (value * SCALE) // qty, value
 
 
 def remaining_lot_qty(db: Session, item_id: int) -> int:
@@ -91,7 +92,7 @@ def consume_fifo(db: Session, item: Item, quantity: int, movement: StockMovement
         take = min(lot.qty_remaining, remaining)
         lot.qty_remaining -= take
         remaining -= take
-        total_cogs += take * lot.unit_cost_cents
+        total_cogs += money_qty(take, lot.unit_cost_cents)
         db.add(
             LotConsumption(
                 lot_id=lot.id,
@@ -102,7 +103,7 @@ def consume_fifo(db: Session, item: Item, quantity: int, movement: StockMovement
         )
     if remaining > 0:
         # Last resort: cost the uncovered qty at last purchase cost.
-        total_cogs += remaining * item.unit_cost_cents
+        total_cogs += money_qty(remaining, item.unit_cost_cents)
         remaining = 0
     db.flush()
     return total_cogs
@@ -121,7 +122,7 @@ def restore_consumptions(db: Session, movement: StockMovement) -> int:
         if lot is None:
             continue
         lot.qty_remaining += row.quantity
-        total += row.quantity * row.unit_cost_cents
+        total += money_qty(row.quantity, row.unit_cost_cents)
         db.delete(row)
     db.flush()
     return total
@@ -141,7 +142,7 @@ def restore_outbound(
     cogs = restore_consumptions(db, movement)
     if cogs == 0 and qty:
         # Legacy movement with no lot rows: treat as a new inbound layer at last cost.
-        cogs = qty * item.unit_cost_cents
+        cogs = money_qty(qty, item.unit_cost_cents)
         create_lot(
             db,
             item=item,
@@ -160,7 +161,7 @@ def restore_outbound(
         reason=reason,
         purpose=purpose,
         cogs_cents=cogs,
-        unit_cost_cents=(cogs // qty) if qty else 0,
+        unit_cost_cents=(cogs * SCALE // qty) if qty else 0,
         purchase_order_id=movement.purchase_order_id,
         invoice_id=movement.invoice_id,
         created_at=now,
@@ -216,13 +217,13 @@ def apply_movement(
             inbound_source = purpose or "receive"
             if unit_cost_cents is not None:
                 item.unit_cost_cents = cost
-        cogs = quantity * cost
+        cogs = money_qty(quantity, cost)
     elif kind == "out":
         if quantity <= 0:
             raise StockError("Quantity must be greater than 0")
         if item.quantity < quantity:
             raise StockError(
-                f"Insufficient stock for {item.sku}: have {item.quantity}, need {quantity}"
+                f"Insufficient stock for {item.sku}: have {from_store(item.quantity)}, need {from_store(quantity)}"
             )
         item.quantity -= quantity
         delta = -quantity
@@ -237,7 +238,7 @@ def apply_movement(
         if delta > 0:
             inbound_qty = delta
             inbound_source = "adjust"
-            cogs = delta * cost
+            cogs = money_qty(delta, cost)
         elif delta < 0:
             pass  # consume after the movement row exists
 
@@ -273,11 +274,11 @@ def apply_movement(
             movement_id=movement.id,
             received_at=now,
         )
-        movement.cogs_cents = inbound_qty * cost
+        movement.cogs_cents = money_qty(inbound_qty, cost)
     elif delta < 0:
         consumed = consume_fifo(db, item, abs(delta), movement)
         movement.cogs_cents = consumed
-        movement.unit_cost_cents = (consumed // abs(delta)) if delta else cost
+        movement.unit_cost_cents = (consumed * SCALE // abs(delta)) if delta else cost
 
     db.flush()
     return movement

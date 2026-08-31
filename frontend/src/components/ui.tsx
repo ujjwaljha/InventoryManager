@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { type MsgKey, useI18n } from "../i18n";
-import { money, when, whenFull } from "../money";
-import type { Invoice, Item } from "../types";
+import { formatQty, money, qtyStep, unitLabel, when, whenFull } from "../money";
+import type { Invoice, Item, Settings } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
   const { t, pick, locale } = useI18n();
@@ -21,6 +21,11 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
           <div className="sku">{t("invoice")}</div>
           <b>{invoice.number}</b>
           <div className="muted">{when(invoice.issued_at, locale)}</div>
+          {invoice.due_date ? (
+            <div className="muted">
+              {t("dueDate")} {invoice.due_date}
+            </div>
+          ) : null}
           <StatusTag status={invoice.status} />
         </div>
       </header>
@@ -57,7 +62,7 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
                 <div>{pick(ln.name, ln.name_id)}</div>
                 <div className="sku">{ln.sku}</div>
               </td>
-              <td>{ln.quantity}</td>
+              <td>{formatQty(ln.quantity)} {unitLabel(ln.unit || "ea", locale)}</td>
               <td>{money(ln.unit_price_cents, invoice.currency_symbol)}</td>
               <td>{money(ln.line_total_cents, invoice.currency_symbol)}</td>
             </tr>
@@ -98,6 +103,11 @@ export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
         <div>
           {t("dateTime")}: {whenFull(invoice.issued_at, locale)}
         </div>
+        {invoice.due_date ? (
+          <div>
+            {t("dueDate")}: {invoice.due_date}
+          </div>
+        ) : null}
         {invoice.salesperson_name ? (
           <div>
             {t("soldBy")}: {invoice.salesperson_name}
@@ -109,6 +119,9 @@ export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
         <div>
           {t("phone")}: {invoice.shopper_phone}
         </div>
+        <div>
+          {t(`status_${invoice.status}` as MsgKey)}
+        </div>
       </div>
       <hr className="thermal-dash" />
       {invoice.lines.map((ln) => (
@@ -116,7 +129,7 @@ export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
           <div>{pick(ln.name, ln.name_id)}</div>
           <div className="thermal-line">
             <span>
-              {ln.quantity} × {money(ln.unit_price_cents, invoice.currency_symbol)}
+              {formatQty(ln.quantity)} {unitLabel(ln.unit || "ea", locale)} × {money(ln.unit_price_cents, invoice.currency_symbol)}
             </span>
             <span>{money(ln.line_total_cents, invoice.currency_symbol)}</span>
           </div>
@@ -163,6 +176,10 @@ export function ItemPicker({
     api<Item[]>("/api/items").then(setItems).catch(() => undefined);
   }, []);
 
+  const want = Number(qty);
+  const sellable = picked ? (picked.available ?? picked.quantity) : 0;
+  const overStock = Boolean(!costMode && picked && Number.isFinite(want) && want > sellable);
+
   const shown = items
     .filter((i) => {
       if (!q.trim()) return picked ? i.id === picked.id : true;
@@ -200,16 +217,18 @@ export function ItemPicker({
                 setPicked(i);
                 setQ("");
                 if (costMode) setExtra(String(Math.round((i.fifo_cogs_cents ?? i.unit_cost_cents) / 100)));
+                setQty(String(qtyStep(i.unit)));
               }}
             >
-              {pick(i.name, i.name_id)} · {i.sku} · {i.quantity} {unitLabelSafe(i.unit, locale)}
+              {pick(i.name, i.name_id)} · {i.sku} · {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
+              {(i.reserved || 0) > 0 ? ` · ${t("heldInCart", { qty: formatQty(i.reserved || 0) })}` : ""}
             </button>
           ))}
         </div>
       )}
       <label>
         {t("quantity")}
-        <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
+        <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
       </label>
       {costMode && (
         <label>
@@ -217,13 +236,18 @@ export function ItemPicker({
           <input value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="numeric" />
         </label>
       )}
+      {overStock && picked ? (
+        <p className="muted">
+          {t("onlyLeft", { name: pick(picked.name, picked.name_id), available: formatQty(picked.available ?? picked.quantity) })}
+        </p>
+      ) : null}
       <button
         className="btn ghost"
         type="button"
-        disabled={!picked || Number(qty) <= 0}
+        disabled={!picked || want <= 0 || overStock}
         onClick={() => {
-          if (!picked) return;
-          onAdd(picked, Number(qty), extra ? Number(extra) : undefined);
+          if (!picked || overStock) return;
+          onAdd(picked, want, extra ? Number(extra) : undefined);
           setPicked(null);
           setQ("");
           setQty("1");
@@ -235,9 +259,6 @@ export function ItemPicker({
   );
 }
 
-function unitLabelSafe(unit: string, locale: string) {
-  return locale === "id" && unit === "bag" ? "sak" : unit;
-}
 
 export function StatusTag({ status }: { status: string }) {
   const { t } = useI18n();
@@ -245,12 +266,128 @@ export function StatusTag({ status }: { status: string }) {
   return <span className={`tag ${status}`}>{t(key)}</span>;
 }
 
+export function PinUnlock({ onUnlocked }: { onUnlocked: () => void }) {
+  const { t } = useI18n();
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/operator/unlock", { method: "POST", body: JSON.stringify({ pin }) });
+      onUnlocked();
+    } catch {
+      setError(t("pinWrong"));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="card form-grid" onSubmit={submit} style={{ maxWidth: 360, margin: "48px auto" }}>
+      <h2 style={{ margin: 0 }}>{t("pinRequired")}</h2>
+      <p className="muted">{t("pinHint")}</p>
+      {error && <div className="banner">{error}</div>}
+      <label>
+        {t("enterPin")}
+        <input
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+          inputMode="numeric"
+          autoComplete="off"
+          autoFocus
+        />
+      </label>
+      <button className="btn" type="submit" disabled={busy || pin.length < 4}>
+        {t("unlock")}
+      </button>
+    </form>
+  );
+}
+
+export function PinSettings({ pinSet, onChange }: { pinSet: boolean; onChange?: () => void }) {
+  const { t } = useI18n();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setNote("");
+    try {
+      await api("/api/operator/pin", {
+        method: "POST",
+        body: JSON.stringify({ pin: next, current_pin: current }),
+      });
+      setNote(t("pinSet"));
+      setCurrent("");
+      setNext("");
+      onChange?.();
+    } catch {
+      setError(t("pinWrong"));
+    }
+  }
+  async function remove() {
+    setError("");
+    setNote("");
+    try {
+      await api("/api/operator/pin/clear", { method: "POST", body: JSON.stringify({ pin: current }) });
+      setNote(t("pinRemoved"));
+      setCurrent("");
+      onChange?.();
+    } catch {
+      setError(t("pinWrong"));
+    }
+  }
+  async function lock() {
+    await api("/api/operator/lock", { method: "POST" });
+    window.location.reload();
+  }
+  return (
+    <form className="card form-grid" onSubmit={save}>
+      <h3 style={{ margin: 0 }}>{t("operatorPin")}</h3>
+      <p className="muted">{t("pinHint")}</p>
+      {error && <div className="banner">{error}</div>}
+      {pinSet ? (
+        <label>
+          {t("currentPin")}
+          <input value={current} onChange={(e) => setCurrent(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" autoComplete="off" />
+        </label>
+      ) : null}
+      <label>
+        {t("newPin")}
+        <input value={next} onChange={(e) => setNext(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" autoComplete="off" />
+      </label>
+      <div className="row">
+        <button className="btn" type="submit" disabled={next.length < 4}>
+          {pinSet ? t("changePin") : t("setPin")}
+        </button>
+        {pinSet ? (
+          <>
+            <button className="btn ghost" type="button" onClick={remove} disabled={current.length < 4}>
+              {t("removePin")}
+            </button>
+            <button className="btn ghost" type="button" onClick={lock}>
+              {t("lockOffice")}
+            </button>
+          </>
+        ) : null}
+      </div>
+      {note && <p className="muted">{note}</p>}
+    </form>
+  );
+}
+
 export function IdentifyForm({
   onDone,
   pending,
+  onCancel,
 }: {
   onDone: (name: string, phone: string) => void;
   pending?: boolean;
+  onCancel?: () => void;
 }) {
   const { t } = useI18n();
   return (
@@ -274,27 +411,49 @@ export function IdentifyForm({
         {t("phone")}
         <input name="phone" required placeholder={t("mobileNumber")} inputMode="tel" autoComplete="tel" />
       </label>
-      <button className="btn" type="submit" disabled={pending}>
-        {t("continue")}
-      </button>
+      <div className="row">
+        <button className="btn" type="submit" disabled={pending}>
+          {t("continue")}
+        </button>
+        {onCancel ? (
+          <button className="btn ghost" type="button" onClick={onCancel}>
+            {t("cancel")}
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 }
 
 export function ShopNav({ count }: { count: number }) {
   const { t } = useI18n();
+  const bump = useCountBump(count);
   return (
     <nav className="bottom-nav">
       <NavLink to="/shop" end>
         {t("shop")}
       </NavLink>
-      <NavLink to="/shop/order">
+      <NavLink to="/shop/order" data-order-target>
         {t("order")}
-        {count > 0 ? <span className="badge">{count}</span> : null}
+        {count > 0 ? (
+          <span key={bump} className={`badge${bump ? " bump" : ""}`}>
+            {count}
+          </span>
+        ) : null}
       </NavLink>
       <NavLink to="/shop/invoices">{t("invoices")}</NavLink>
     </nav>
   );
+}
+
+function useCountBump(count: number) {
+  const [bump, setBump] = useState(0);
+  const prev = useRef(count);
+  useEffect(() => {
+    if (count > prev.current) setBump((n) => n + 1);
+    prev.current = count;
+  }, [count]);
+  return bump;
 }
 
 export function OpNav() {
@@ -315,7 +474,11 @@ export function SharePanel({ showRestore = false }: { showRestore?: boolean }) {
   const [lan, setLan] = useState("http://localhost:8000/shop");
   const [copied, setCopied] = useState(false);
   const [note, setNote] = useState("");
+  const [lanOn, setLanOn] = useState(false);
   useEffect(() => {
+    api<Settings>("/api/settings")
+      .then((s) => setLanOn(Boolean(s.allow_lan)))
+      .catch(() => undefined);
     api<{ shop_url?: string; lan_host: string }>("/api/lan")
       .then((r) => setLan(r.shop_url || `http://${r.lan_host}:8000/shop`))
       .catch(() => undefined);
@@ -349,18 +512,24 @@ export function SharePanel({ showRestore = false }: { showRestore?: boolean }) {
   return (
     <section className="card">
       <h3>{t("shareTitle")}</h3>
-      <p className="muted">{t("wifiLive")}</p>
-      <div className="share-row">
-        <img className="qr" src="/api/lan/qr" alt={t("qrAlt")} />
-        <div>
-          <b className="share-url">{lan}</b>
-          <div className="row" style={{ marginTop: 10 }}>
-            <button className="btn" type="button" onClick={copy}>
-              {copied ? t("copied") : t("copyAddress")}
-            </button>
+      {lanOn ? (
+        <>
+          <p className="muted">{t("wifiLive")}</p>
+          <div className="share-row">
+            <img className="qr" src="/api/lan/qr" alt={t("qrAlt")} />
+            <div>
+              <b className="share-url">{lan}</b>
+              <div className="row" style={{ marginTop: 10 }}>
+                <button className="btn" type="button" onClick={copy}>
+                  {copied ? t("copied") : t("copyAddress")}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      ) : (
+        <p className="muted">{t("lanOff")}</p>
+      )}
       <p className="muted">{t("fileShare")}</p>
       {showRestore && (
         <div className="row">

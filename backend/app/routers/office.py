@@ -6,6 +6,7 @@ from app.deps import get_db, raise_checkout
 from app.models import DamageNote, Restock, RestockLine, Supplier, SupplierReturn, SupplierReturnLine
 from app.schemas import DamageIn, RestockCreateIn, RestockLineIn, SupplierIn, SupplierReturnIn, TillSaleIn
 from app.serialize import damage_out, invoice_out, restock_out, supplier_return_out
+from app.qty import to_store
 from app.services import office as off
 from app.services.stock import StockError, stock_http
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["office"])
 def _merge_lines(lines) -> list[tuple[int, int]]:
     merged: dict[int, int] = {}
     for line in lines:
-        merged[line.item_id] = merged.get(line.item_id, 0) + line.quantity
+        merged[line.item_id] = merged.get(line.item_id, 0) + to_store(line.quantity)
     return list(merged.items())
 
 
@@ -84,7 +85,7 @@ def restock_add_line(restock_id: int, body: RestockLineIn, db: Session = Depends
     if row is None:
         raise HTTPException(status_code=404, detail="Restock not found")
     try:
-        row = off.upsert_restock_line(db, row, body.item_id, body.quantity, body.unit_cost_cents)
+        row = off.upsert_restock_line(db, row, body.item_id, to_store(body.quantity), body.unit_cost_cents)
         db.commit()
         return restock_out(off.load_restock(db, restock_id) or row)
     except Exception as err:
@@ -197,6 +198,7 @@ def till_sale(body: TillSaleIn, db: Session = Depends(get_db)):
             salesperson_name=body.salesperson_name,
             lines=_merge_lines(body.lines),
             note=body.note,
+            paid=body.paid,
         )
         db.commit()
         return invoice_out(invoice)

@@ -6,9 +6,9 @@ A one-stop shop on **SQLite**: shoppers create a **purchase order**, **place** i
 
 Non-technical staff: see **[Start here.txt](Start%20here.txt)**.
 
-**Packaged app (no Python):** GitHub Actions builds `Warung Pojok.exe` (Windows) and `Warung Pojok.app` (Mac). Download the zip from the **Build shop apps** workflow artifacts, unzip, double-click. Leave the window open.
+**Packaged app (no Python):** GitHub Actions builds `Toko Bangunan Makmur.exe` (Windows) and `Toko Bangunan Makmur.app` (Mac). Download the zip from the **Build shop apps** workflow artifacts, unzip, double-click. Leave the window open.
 
-**From source:** install [Python 3](https://www.python.org/downloads/) once (Windows: tick **Add python.exe to PATH**), then double-click **`Start Warung Pojok.command`** (Mac) or **`Start Warung Pojok.bat`** (Windows).
+**From source:** install [Python 3](https://www.python.org/downloads/) once (Windows: tick **Add python.exe to PATH**), then double-click **`Start Toko Bangunan Makmur.command`** (Mac) or **`Start Toko Bangunan Makmur.bat`** (Windows).
 
 **Wi‑Fi:** phones on the same network scan the QR on the till. That is live sync — one computer is the shop.
 
@@ -22,8 +22,8 @@ cd frontend && npm install && npm run build && cd ..
 python3 -m PyInstaller --noconfirm --clean warung.spec
 ```
 
-Windows output: `dist/Warung Pojok/Warung Pojok.exe`  
-Mac: `dist/Warung Pojok.app`
+Windows output: `dist/Toko Bangunan Makmur/Toko Bangunan Makmur.exe`  
+Mac: `dist/Toko Bangunan Makmur.app`
 
 ## Run (developers)
 

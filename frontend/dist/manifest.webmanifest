@@ -1,6 +1,6 @@
 {
-  "name": "Warung Pojok",
-  "short_name": "Warung",
+  "name": "Toko Bangunan Makmur",
+  "short_name": "Makmur",
   "start_url": "/shop",
   "display": "standalone",
   "background_color": "#f3eadc",

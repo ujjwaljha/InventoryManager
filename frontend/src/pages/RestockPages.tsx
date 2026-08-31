@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { ItemPicker, StatusTag } from "../components/ui";
 import { useI18n } from "../i18n";
-import { centsFromRupiah, money, when } from "../money";
+import { centsFromRupiah, formatQty, money, when } from "../money";
 import type { Item, Restock } from "../types";
 
 export function RestockList() {
@@ -149,6 +149,7 @@ export function RestockDetail() {
               <th>{t("qty")}</th>
               <th>{t("unitCost")}</th>
               <th>{t("amount")}</th>
+              {row.status === "draft" ? <th /> : null}
             </tr>
           </thead>
           <tbody>
@@ -158,9 +159,27 @@ export function RestockDetail() {
                   {pick(ln.name, ln.name_id)}
                   <div className="sku">{ln.sku}</div>
                 </td>
-                <td>{ln.quantity}</td>
+                <td>{formatQty(ln.quantity)}</td>
                 <td>{money(ln.unit_cost_cents)}</td>
                 <td>{money(ln.line_total_cents)}</td>
+                {row.status === "draft" ? (
+                  <td>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={async () => {
+                        setError("");
+                        try {
+                          setRow(await api<Restock>(`/api/restocks/${id}/lines/${ln.item_id}`, { method: "DELETE" }));
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : t("updateFailed"));
+                        }
+                      }}
+                    >
+                      ×
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

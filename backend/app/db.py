@@ -56,6 +56,19 @@ def init_db(engine: Engine) -> None:
         _add_column_if_missing(conn, "purchase_order_lines", "name_id", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(conn, "invoice_lines", "name_id", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(conn, "invoice_lines", "cogs_cents", "INTEGER NOT NULL DEFAULT 0")
+        _add_column_if_missing(conn, "invoice_lines", "unit", "TEXT NOT NULL DEFAULT 'ea'")
+        conn.execute(
+            text(
+                """
+                UPDATE invoice_lines
+                SET unit = COALESCE(
+                    (SELECT items.unit FROM items WHERE items.sku = invoice_lines.sku),
+                    'ea'
+                )
+                WHERE unit IS NULL OR unit = '' OR unit = 'ea'
+                """
+            )
+        )
         _add_column_if_missing(conn, "invoices", "salesperson_name", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(conn, "invoices", "cogs_cents", "INTEGER NOT NULL DEFAULT 0")
         _add_column_if_missing(conn, "stock_movements", "purpose", "TEXT NOT NULL DEFAULT ''")
@@ -64,13 +77,92 @@ def init_db(engine: Engine) -> None:
         _add_column_if_missing(conn, "stock_movements", "restock_id", "INTEGER")
         _add_column_if_missing(conn, "stock_movements", "damage_id", "INTEGER")
         _add_column_if_missing(conn, "stock_movements", "supplier_return_id", "INTEGER")
+        _add_column_if_missing(conn, "shop_settings", "operator_pin_hash", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "shop_settings", "operator_pin_salt", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "shop_settings", "allow_lan", "INTEGER NOT NULL DEFAULT 0")
+        _add_column_if_missing(conn, "shop_settings", "credit_days", "INTEGER NOT NULL DEFAULT 30")
+        _add_column_if_missing(conn, "invoices", "due_date", "TEXT")
+        _add_column_if_missing(conn, "credit_notes", "promised_date", "TEXT")
+        _backfill_paid_invoices(conn)
+        _backfill_due_dates(conn)
         conn.execute(
             text("UPDATE shop_settings SET currency_symbol = 'Rp', currency_code = 'IDR' WHERE id = 1")
         )
+        _scale_quantities_to_millis(conn)
         conn.commit()
 
 
+def _scale_quantities_to_millis(conn) -> None:
+    """v1 stored whole units. v2 stores thousandths so 0.5 m³ is a real quantity."""
+    version = int(conn.execute(text("PRAGMA user_version")).scalar() or 0)
+    if version >= 2:
+        return
+    tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+    for table, column in (
+        ("items", "quantity"),
+        ("items", "reorder_point"),
+        ("purchase_order_lines", "quantity"),
+        ("invoice_lines", "quantity"),
+        ("restock_lines", "quantity"),
+        ("damage_lines", "quantity"),
+        ("supplier_return_lines", "quantity"),
+        ("stock_lots", "qty_original"),
+        ("stock_lots", "qty_remaining"),
+        ("lot_consumptions", "quantity"),
+        ("stock_movements", "quantity_delta"),
+        ("stock_movements", "quantity_after"),
+    ):
+        if table not in tables:
+            continue
+        cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+        if column not in cols:
+            continue
+        conn.execute(text(f"UPDATE {table} SET {column} = {column} * 1000"))
+    conn.execute(text("PRAGMA user_version = 2"))
+
+
+def _backfill_paid_invoices(conn) -> None:
+    tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+    if "invoices" not in tables or "invoice_payments" not in tables:
+        return
+    conn.execute(
+        text(
+            """
+            INSERT INTO invoice_payments (invoice_id, amount_cents, note, created_at)
+            SELECT id, total_cents, 'Paid in full', COALESCE(paid_at, issued_at)
+            FROM invoices
+            WHERE status = 'paid'
+              AND id NOT IN (SELECT invoice_id FROM invoice_payments)
+            """
+        )
+    )
+
+
+def _backfill_due_dates(conn) -> None:
+    tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+    if "invoices" not in tables or "shop_settings" not in tables:
+        return
+    cols = {row[1] for row in conn.execute(text("PRAGMA table_info(invoices)"))}
+    if "due_date" not in cols:
+        return
+    conn.execute(
+        text(
+            """
+            UPDATE invoices
+            SET due_date = date(
+                substr(issued_at, 1, 10),
+                '+' || COALESCE((SELECT credit_days FROM shop_settings LIMIT 1), 30) || ' days'
+            )
+            WHERE due_date IS NULL AND issued_at IS NOT NULL AND issued_at != ''
+            """
+        )
+    )
+
+
 def _add_column_if_missing(conn, table: str, column: str, ddl: str) -> None:
+    tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+    if table not in tables:
+        return
     cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
     if column not in cols:
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))

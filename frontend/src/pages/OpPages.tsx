@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { SharePanel, StatusTag } from "../components/ui";
 import { type MsgKey, useI18n } from "../i18n";
-import { money, unitLabel, when } from "../money";
+import { formatQty, money, unitLabel, when } from "../money";
 import type { Dashboard, Invoice, Item, Movement, PurchaseOrder } from "../types";
 
 export function OpDashboard() {
@@ -34,6 +34,9 @@ export function OpDashboard() {
         <Link className="btn ghost" to="/receipts">
           {t("receipts")}
         </Link>
+        <Link className="btn ghost" to="/credit">
+          {t("credit")}
+        </Link>
         <Link className="btn ghost" to="/reports">
           {t("reports")}
         </Link>
@@ -47,6 +50,12 @@ export function OpDashboard() {
           {t("unitsOnHand")}
           <b>{data.units_on_hand}</b>
         </div>
+        {(data.units_reserved || 0) > 0 ? (
+          <Link className="card kpi" to="/orders">
+            {t("unitsReserved")}
+            <b>{data.units_reserved}</b>
+          </Link>
+        ) : null}
         <div className="card kpi">
           {t("lowStock")}
           <b>{data.low_stock_count}</b>
@@ -59,6 +68,21 @@ export function OpDashboard() {
           {t("ordersToday")}
           <b>{data.today_order_count}</b>
         </div>
+        <Link className="card kpi" to="/orders">
+          {t("openDrafts")}
+          <b>{data.draft_po_count}</b>
+        </Link>
+        <Link className="card kpi" to="/credit">
+          {t("unpaid")}
+          <b>{data.unpaid_count ?? 0}</b>
+          <span className="muted">{money(data.unpaid_cents || 0, data.currency_symbol)}</span>
+        </Link>
+        {(data.promises_due_count || 0) > 0 ? (
+          <Link className="card kpi" to="/credit">
+            {t("promiseDue")}
+            <b>{data.promises_due_count}</b>
+          </Link>
+        ) : null}
       </div>
       <div className="cards">
         <section className="card">
@@ -68,7 +92,10 @@ export function OpDashboard() {
             <div key={i.id} className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
               <Link to={`/items/${i.id}`}>{pick(i.name, i.name_id)}</Link>
               <span className="stock low">
-                {i.quantity} / {i.reorder_point}
+                {formatQty(i.available ?? i.quantity)} / {formatQty(i.reorder_point)}
+                {(i.reserved || 0) > 0 ? (
+                  <div className="muted">{t("heldInCart", { qty: formatQty(i.reserved || 0) })}</div>
+                ) : null}
               </span>
             </div>
           ))}
@@ -83,7 +110,7 @@ export function OpDashboard() {
               </span>
               <span>
                 {m.quantity_delta > 0 ? "+" : ""}
-                {m.quantity_delta}
+                {formatQty(m.quantity_delta)}
               </span>
             </div>
           ))}
@@ -144,8 +171,12 @@ export function OpItems() {
                 </td>
                 <td className="muted">{pick(i.category_name || "", i.category_name_id)}</td>
                 <td>
-                  {i.quantity} {unitLabel(i.unit, locale)}
-                  <div className="muted">{money(i.fifo_cogs_cents || i.unit_cost_cents)}</div>
+                  {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
+                  {(i.reserved || 0) > 0 ? (
+                    <div className="muted">{t("heldInCart", { qty: formatQty(i.reserved || 0) })}</div>
+                  ) : (
+                    <div className="muted">{money(i.fifo_cogs_cents || i.unit_cost_cents)}</div>
+                  )}
                 </td>
                 <td>{money(i.fifo_cogs_cents || i.unit_cost_cents)}</td>
                 <td>{money(i.unit_price_cents)}</td>

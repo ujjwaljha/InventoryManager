@@ -35,6 +35,10 @@ class ShopSettings(Base):
     next_damage_seq: Mapped[int] = mapped_column(Integer, default=1)
     return_prefix: Mapped[str] = mapped_column(Text, default="RTN")
     next_return_seq: Mapped[int] = mapped_column(Integer, default=1)
+    operator_pin_hash: Mapped[str] = mapped_column(Text, default="")
+    operator_pin_salt: Mapped[str] = mapped_column(Text, default="")
+    allow_lan: Mapped[int] = mapped_column(Integer, default=0)
+    credit_days: Mapped[int] = mapped_column(Integer, default=30)
 
     __table_args__ = (CheckConstraint("id = 1", name="ck_settings_singleton"),)
 
@@ -123,6 +127,7 @@ class Shopper(Base):
 
     purchase_orders: Mapped[list[PurchaseOrder]] = relationship(back_populates="shopper")
     invoices: Mapped[list[Invoice]] = relationship(back_populates="shopper")
+    credit_notes: Mapped[list["CreditNote"]] = relationship(back_populates="shopper")
 
 
 class PurchaseOrder(Base):
@@ -201,6 +206,7 @@ class Invoice(Base):
     issued_at: Mapped[str] = mapped_column(Text, nullable=False)
     paid_at: Mapped[str | None] = mapped_column(Text)
     voided_at: Mapped[str | None] = mapped_column(Text)
+    due_date: Mapped[str | None] = mapped_column(Text)
 
     purchase_order: Mapped[PurchaseOrder] = relationship(back_populates="invoice")
     shopper: Mapped[Shopper] = relationship(back_populates="invoices")
@@ -209,6 +215,11 @@ class Invoice(Base):
         cascade="all, delete-orphan",
         order_by="InvoiceLine.id",
     )
+    payments: Mapped[list[InvoicePayment]] = relationship(
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        order_by="InvoicePayment.id",
+    )
 
     __table_args__ = (
         CheckConstraint("status IN ('issued', 'paid', 'void')", name="ck_inv_status"),
@@ -216,6 +227,40 @@ class Invoice(Base):
         Index("idx_invoices_status", "status", "issued_at"),
         Index("idx_invoices_number", "number"),
     )
+
+
+class InvoicePayment(Base):
+    __tablename__ = "invoice_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+    invoice: Mapped[Invoice] = relationship(back_populates="payments")
+
+    __table_args__ = (
+        CheckConstraint("amount_cents > 0", name="ck_pay_amount"),
+        Index("idx_payments_invoice", "invoice_id", "created_at"),
+        Index("idx_payments_created", "created_at"),
+    )
+
+
+class CreditNote(Base):
+    __tablename__ = "credit_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shopper_id: Mapped[int] = mapped_column(ForeignKey("shoppers.id", ondelete="CASCADE"), nullable=False)
+    invoice_id: Mapped[int | None] = mapped_column(ForeignKey("invoices.id", ondelete="SET NULL"))
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    promised_date: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+    shopper: Mapped[Shopper] = relationship(back_populates="credit_notes")
+    invoice: Mapped["Invoice"] = relationship()
+
+    __table_args__ = (Index("idx_credit_notes_shopper", "shopper_id", "created_at"),)
 
 
 class InvoiceLine(Base):
@@ -229,6 +274,7 @@ class InvoiceLine(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     name_id: Mapped[str] = mapped_column(Text, default="")
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit: Mapped[str] = mapped_column(Text, default="ea")
     unit_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     line_total_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     cogs_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

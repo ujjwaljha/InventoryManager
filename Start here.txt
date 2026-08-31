@@ -1,17 +1,17 @@
-Warung Pojok — for the shop (not for programmers)
+Toko Bangunan Makmur — for the shop (not for programmers)
 ================================================
 
 You need one Mac or Windows computer that stays on while the shop is open.
 
 EASIEST: use the real app (no Python)
 -------------------------------------
-1. Get Warung-Pojok-Windows.zip or Warung-Pojok-macOS.zip
+1. Get Toko-Bangunan-Makmur-Windows.zip or Toko-Bangunan-Makmur-macOS.zip
    (GitHub → Actions → “Build shop apps” → the green run → Artifacts,
     or a Release if someone published one).
 2. Unzip it on the Desktop.
 3. Double-click:
-   • Windows: Warung Pojok.exe  (inside the Warung Pojok folder)
-   • Mac: Warung Pojok.app
+   • Windows: Toko Bangunan Makmur.exe  (inside the Toko Bangunan Makmur folder)
+   • Mac: Toko Bangunan Makmur.app
      First time: right-click → Open → Open
 4. Leave the shop window open while you sell.
    You never need to install Python.
@@ -22,9 +22,9 @@ If you only have the source folder (not the .exe / .app)
    Windows: on the installer, tick “Add python.exe to PATH”.
 2. Unzip this folder anywhere (Desktop is fine).
 3. Double-click:
-   • Mac:  “Start Warung Pojok.command”
+   • Mac:  “Start Toko Bangunan Makmur.command”
      First time: right-click the file → Open → Open
-   • Windows:  “Start Warung Pojok.bat”
+   • Windows:  “Start Toko Bangunan Makmur.bat”
 4. Wait until a shop window appears. The first start can take a minute
    and needs the internet once.
 
@@ -42,10 +42,10 @@ To stop: close the shop window.
 
 ---
 
-Warung Pojok — untuk toko (bukan untuk programmer)
+Toko Bangunan Makmur — untuk toko (bukan untuk programmer)
 ================================================
 
-Paling mudah: pakai Warung Pojok.exe (Windows) atau Warung Pojok.app (Mac).
+Paling mudah: pakai Toko Bangunan Makmur.exe (Windows) atau Toko Bangunan Makmur.app (Mac).
 Tidak perlu memasang Python. Unzip, klik dua kali, biarkan jendela tetap terbuka.
 
 Wi-Fi: HP di Wi-Fi yang sama, pindai kode QR di kasir.
@@ -66,7 +66,7 @@ To stop: close the shop window.
 
 ---
 
-Warung Pojok — untuk toko (bukan untuk programmer)
+Toko Bangunan Makmur — untuk toko (bukan untuk programmer)
 ================================================
 
 Butuh satu komputer Mac atau Windows yang tetap menyala selama toko buka.
@@ -75,8 +75,8 @@ Butuh satu komputer Mac atau Windows yang tetap menyala selama toko buka.
    Windows: centang “Add python.exe to PATH”.
 2. Buka zip folder ini di mana saja (Desktop boleh).
 3. Klik dua kali:
-   • Mac:  “Start Warung Pojok.command”
-   • Windows:  “Start Warung Pojok.bat”
+   • Mac:  “Start Toko Bangunan Makmur.command”
+   • Windows:  “Start Toko Bangunan Makmur.bat”
 4. Tunggu jendela toko muncul. Pertama kali perlu internet sebentar.
 5. Jangan tutup jendela itu selama jualan.
 

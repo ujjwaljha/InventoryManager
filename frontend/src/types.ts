@@ -12,6 +12,8 @@ export type Item = {
   location_name: string | null;
   location_name_id?: string | null;
   quantity: number;
+  available?: number;
+  reserved?: number;
   unit: string;
   reorder_point: number;
   unit_cost_cents: number;
@@ -39,6 +41,7 @@ export type PoLine = {
   name: string;
   name_id?: string;
   quantity: number;
+  unit?: string;
   unit_price_cents: number;
   line_total_cents: number;
   available: number | null;
@@ -50,6 +53,7 @@ export type InvoiceLine = {
   name: string;
   name_id?: string;
   quantity: number;
+  unit?: string;
   unit_price_cents: number;
   line_total_cents: number;
   cogs_cents?: number;
@@ -77,7 +81,12 @@ export type Invoice = {
   cogs_cents?: number;
   issued_at: string;
   paid_at: string | null;
+  age_days?: number;
   voided_at: string | null;
+  due_date?: string | null;
+  overdue_days?: number;
+  amount_paid_cents?: number;
+  balance_cents?: number;
   lines: InvoiceLine[];
 };
 
@@ -127,10 +136,14 @@ export type Movement = {
 export type Dashboard = {
   sku_count: number;
   units_on_hand: number;
+  units_reserved?: number;
   low_stock_count: number;
   draft_po_count: number;
   today_order_count: number;
   today_sales_cents: number;
+  unpaid_count?: number;
+  unpaid_cents?: number;
+  promises_due_count?: number;
   currency_symbol: string;
   currency_code?: string;
   shop_name: string;
@@ -156,6 +169,9 @@ export type Settings = {
   return_prefix?: string;
   next_return_seq?: number;
   shop_today?: string;
+  pin_set?: boolean;
+  allow_lan?: boolean;
+  credit_days?: number;
 };
 
 export type Shortage = {
@@ -168,6 +184,15 @@ export type Shortage = {
 };
 
 export type Category = { id: number; name: string; name_id?: string };
+
+export type Location = { id: number; name: string; name_id?: string };
+
+export type CsvImportResult = {
+  created: number;
+  updated: number;
+  error_count: number;
+  errors: { line: number; sku: string; error: string }[];
+};
 
 export type Supplier = { id: number; name: string; phone: string; notes?: string };
 
@@ -240,6 +265,21 @@ export type ReportItem = {
   cogs_cents: number;
   profit_cents: number;
   margin_bps: number;
+  writeoff_cents?: number;
+  adjusted_profit_cents?: number;
+  adjusted_margin_bps?: number;
+};
+
+export type ReportPerson = {
+  name?: string;
+  phone?: string;
+  shopper_id?: number;
+  receipt_count: number;
+  revenue_cents: number;
+  cogs_cents: number;
+  collected_cents?: number;
+  profit_cents: number;
+  margin_bps: number;
 };
 
 export type ReportCategory = {
@@ -251,6 +291,9 @@ export type ReportCategory = {
   cogs_cents: number;
   profit_cents: number;
   margin_bps: number;
+  writeoff_cents?: number;
+  adjusted_profit_cents?: number;
+  adjusted_margin_bps?: number;
 };
 
 export type SalesReport = {
@@ -258,13 +301,67 @@ export type SalesReport = {
   date_to: string;
   currency_symbol: string;
   receipt_count: number;
+  paid_count?: number;
+  unpaid_count?: number;
   revenue_cents: number;
+  subtotal_cents?: number;
+  tax_cents?: number;
+  tax_bps?: number;
+  cash_cents?: number;
+  credit_cents?: number;
+  collected_cents?: number;
+  collected_count?: number;
   cogs_cents: number;
   profit_cents: number;
   margin_bps: number;
+  damage_cents?: number;
+  supplier_return_cents?: number;
+  writeoff_cents?: number;
+  adjusted_profit_cents?: number;
+  adjusted_margin_bps?: number;
+  voided_cents?: number;
+  voided_count?: number;
   receipts: Invoice[];
   items: ReportItem[];
   categories: ReportCategory[];
+  salespeople?: ReportPerson[];
+  customers?: ReportPerson[];
+};
+
+export type AgingBuckets = {
+  d0_30: number;
+  d31_60: number;
+  d61_90: number;
+  d90_plus: number;
+};
+
+export type CreditNote = {
+  id: number;
+  body: string;
+  invoice_id?: number | null;
+  promised_date?: string | null;
+  created_at: string;
+};
+
+export type CreditCustomer = {
+  shopper_id: number;
+  shopper_name: string;
+  shopper_phone: string;
+  invoice_count: number;
+  unpaid_cents: number;
+  oldest_issued_at: string;
+  aging_cents?: AgingBuckets;
+  notes?: CreditNote[];
+};
+
+export type CreditReport = {
+  currency_symbol: string;
+  invoice_count: number;
+  unpaid_cents: number;
+  aging_cents?: AgingBuckets;
+  customers: CreditCustomer[];
+  invoices: Invoice[];
+  promises_due_count?: number;
 };
 
 export type StockReport = {

@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.deps import get_db
+from app.deps import get_db, raise_checkout
 from app.models import Category, Item, Location, StockLot, StockMovement
+from app.qty import from_store, to_store
 from app.schemas import CategoryIn, ItemIn, ItemPatch, LocationIn, MovementIn
 from app.serialize import item_out, movement_out
+from app.services import checkout as chk
 from app.services.stock import StockError, apply_movement, stock_http
 from app.timeutil import utcnow
 
@@ -53,11 +55,85 @@ def create_location(body: LocationIn, db: Session = Depends(get_db)):
     existing = db.execute(select(Location).where(Location.name == body.name.strip())).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Location already exists")
-    loc = Location(name=body.name.strip(), created_at=utcnow())
+    loc = Location(
+        name=body.name.strip(),
+        name_id=(body.name_id or body.name).strip(),
+        created_at=utcnow(),
+    )
     db.add(loc)
     db.commit()
     db.refresh(loc)
-    return {"id": loc.id, "name": loc.name}
+    return {"id": loc.id, "name": loc.name, "name_id": loc.name_id or loc.name}
+
+
+def _named_out(row) -> dict:
+    return {"id": row.id, "name": row.name, "name_id": getattr(row, "name_id", None) or row.name}
+
+
+@router.patch("/categories/{category_id}")
+def patch_category(category_id: int, body: CategoryIn, db: Session = Depends(get_db)):
+    cat = db.get(Category, category_id)
+    if cat is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    name = body.name.strip()
+    clash = db.execute(select(Category).where(Category.name == name, Category.id != category_id)).scalar_one_or_none()
+    if clash:
+        raise HTTPException(status_code=409, detail="Category already exists")
+    cat.name = name
+    cat.name_id = (body.name_id or name).strip()
+    db.commit()
+    db.refresh(cat)
+    return _named_out(cat)
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(category_id: int, into_id: int | None = Query(default=None), db: Session = Depends(get_db)):
+    cat = db.get(Category, category_id)
+    if cat is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    if into_id:
+        if into_id == category_id:
+            raise HTTPException(status_code=400, detail="Cannot merge a category into itself")
+        dest = db.get(Category, into_id)
+        if dest is None:
+            raise HTTPException(status_code=404, detail="Target category not found")
+        db.execute(update(Item).where(Item.category_id == category_id).values(category_id=into_id))
+    db.delete(cat)
+    db.commit()
+    return {"ok": True}
+
+
+@router.patch("/locations/{location_id}")
+def patch_location(location_id: int, body: LocationIn, db: Session = Depends(get_db)):
+    loc = db.get(Location, location_id)
+    if loc is None:
+        raise HTTPException(status_code=404, detail="Location not found")
+    name = body.name.strip()
+    clash = db.execute(select(Location).where(Location.name == name, Location.id != location_id)).scalar_one_or_none()
+    if clash:
+        raise HTTPException(status_code=409, detail="Location already exists")
+    loc.name = name
+    loc.name_id = (body.name_id or name).strip()
+    db.commit()
+    db.refresh(loc)
+    return _named_out(loc)
+
+
+@router.delete("/locations/{location_id}")
+def delete_location(location_id: int, into_id: int | None = Query(default=None), db: Session = Depends(get_db)):
+    loc = db.get(Location, location_id)
+    if loc is None:
+        raise HTTPException(status_code=404, detail="Location not found")
+    if into_id:
+        if into_id == location_id:
+            raise HTTPException(status_code=400, detail="Cannot merge a location into itself")
+        dest = db.get(Location, into_id)
+        if dest is None:
+            raise HTTPException(status_code=404, detail="Target location not found")
+        db.execute(update(Item).where(Item.location_id == location_id).values(location_id=into_id))
+    db.delete(loc)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/items")
@@ -86,7 +162,8 @@ def list_items(
         items = [i for i in items if _item_matches(i, needle)]
     if low_stock:
         items = [i for i in items if i.quantity <= i.reorder_point]
-    return [item_out(i) for i in items]
+    reserved = chk.draft_reserved(db, [i.id for i in items])
+    return [item_out(i, reserved.get(i.id, 0)) for i in items]
 
 
 @router.post("/items")
@@ -105,7 +182,7 @@ def create_item(body: ItemIn, db: Session = Depends(get_db)):
         location_id=body.location_id,
         quantity=0,
         unit=body.unit or "ea",
-        reorder_point=body.reorder_point,
+        reorder_point=to_store(body.reorder_point),
         unit_cost_cents=body.unit_cost_cents,
         unit_price_cents=body.unit_price_cents,
         notes=body.notes or "",
@@ -121,7 +198,7 @@ def create_item(body: ItemIn, db: Session = Depends(get_db)):
                 db,
                 item_id=item.id,
                 kind="in",
-                quantity=body.quantity,
+                quantity=to_store(body.quantity),
                 reason="Opening stock",
                 purpose="opening",
                 unit_cost_cents=body.unit_cost_cents,
@@ -147,7 +224,8 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     ).scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    return item_out(item)
+    reserved = chk.draft_reserved(db, [item.id]).get(item.id, 0)
+    return item_out(item, reserved)
 
 
 @router.patch("/items/{item_id}")
@@ -163,6 +241,8 @@ def patch_item(item_id: int, body: ItemPatch, db: Session = Depends(get_db)):
         if clash:
             raise HTTPException(status_code=409, detail="SKU already exists")
         data["sku"] = data["sku"].strip()
+    if "reorder_point" in data and data["reorder_point"] is not None:
+        data["reorder_point"] = to_store(data["reorder_point"])
     for key, value in data.items():
         setattr(item, key, value)
     item.updated_at = utcnow()
@@ -198,11 +278,22 @@ def item_movement(item_id: int, body: MovementIn, db: Session = Depends(get_db))
         reason = body.reason.strip()
         purpose = body.purpose.strip() or "adjust"
     try:
+        chk.begin_immediate(db)
+        qty = to_store(body.quantity)
+        item = db.get(Item, item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+        if body.kind == "out":
+            chk.require_sellable(db, item, qty)
+        elif body.kind == "adjust":
+            reserved = chk.draft_reserved(db, [item.id]).get(item.id, 0)
+            if qty < reserved:
+                chk.require_sellable(db, item, item.quantity - qty)
         mov = apply_movement(
             db,
             item_id=item_id,
             kind=body.kind,
-            quantity=body.quantity,
+            quantity=qty,
             reason=reason,
             purpose=purpose,
             unit_cost_cents=body.unit_cost_cents,
@@ -210,9 +301,15 @@ def item_movement(item_id: int, body: MovementIn, db: Session = Depends(get_db))
         db.commit()
         db.refresh(mov)
         return movement_out(mov)
+    except HTTPException:
+        db.rollback()
+        raise
     except StockError as err:
         db.rollback()
         raise stock_http(err) from err
+    except Exception as err:
+        db.rollback()
+        raise_checkout(err)
 
 
 @router.get("/items/{item_id}/movements")
@@ -252,8 +349,8 @@ def item_lots(item_id: int, db: Session = Depends(get_db)):
             "id": lot.id,
             "received_at": lot.received_at,
             "unit_cost_cents": lot.unit_cost_cents,
-            "qty_original": lot.qty_original,
-            "qty_remaining": lot.qty_remaining,
+            "qty_original": from_store(lot.qty_original),
+            "qty_remaining": from_store(lot.qty_remaining),
             "source": lot.source,
             "restock_id": lot.restock_id,
         }

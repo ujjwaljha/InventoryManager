@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start Warung Pojok. Works from source or as a packaged .exe / .app."""
+"""Start Toko Bangunan Makmur. Works from source or as a packaged .exe / .app."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ PORT = 8000
 
 LANG = {
     "id": {
-        "title": "Warung Pojok",
+        "title": "Toko Bangunan Makmur",
         "starting": "Menyiapkan toko…",
         "running": "Toko sedang berjalan. Jangan tutup jendela ini.",
         "failed": "Tidak bisa menjalankan toko.",
@@ -39,7 +39,7 @@ LANG = {
         "already": "Toko sudah berjalan. Membuka kasir…",
     },
     "en": {
-        "title": "Warung Pojok",
+        "title": "Toko Bangunan Makmur",
         "starting": "Preparing the shop…",
         "running": "The shop is running. Leave this window open.",
         "failed": "Could not start the shop.",
@@ -84,7 +84,7 @@ def die(message: str) -> None:
 
         root = tkinter.Tk()
         root.withdraw()
-        messagebox.showerror("Warung Pojok", message)
+        messagebox.showerror("Toko Bangunan Makmur", message)
         root.destroy()
     except Exception:
         pass

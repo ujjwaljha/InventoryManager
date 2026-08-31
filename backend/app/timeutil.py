@@ -38,6 +38,39 @@ def shop_day_bounds(day: str | None = None) -> tuple[str, str]:
     return start, end
 
 
+def add_shop_days(day: str, days: int) -> str:
+    return (date.fromisoformat(day[:10]) + timedelta(days=int(days))).isoformat()
+
+
+def overdue_days(due_date: str | None, issued_at: str | None = None, today: str | None = None) -> int:
+    if due_date:
+        start = date.fromisoformat(due_date[:10])
+    elif issued_at:
+        start = date.fromisoformat(shop_date(issued_at))
+    else:
+        return 0
+    end = date.fromisoformat(today or today_shop())
+    return max(0, (end - start).days)
+
+
+def age_days(issued_at: str | None, today: str | None = None) -> int:
+    if not issued_at:
+        return 0
+    start = date.fromisoformat(shop_date(issued_at))
+    end = date.fromisoformat(today or today_shop())
+    return max(0, (end - start).days)
+
+
+def aging_bucket(days: int) -> str:
+    if days <= 30:
+        return "d0_30"
+    if days <= 60:
+        return "d31_60"
+    if days <= 90:
+        return "d61_90"
+    return "d90_plus"
+
+
 def range_bounds(date_from: str | None, date_to: str | None) -> tuple[str, str]:
     start_day = date_from or today_shop()
     end_day = date_to or start_day

@@ -1,11 +1,49 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models import Category, Item, Location, ShopSettings, Shopper
+from app.models import (
+    Category,
+    DamageLine,
+    DamageNote,
+    Invoice,
+    InvoiceLine,
+    Item,
+    Location,
+    LotConsumption,
+    PurchaseOrder,
+    PurchaseOrderLine,
+    Restock,
+    RestockLine,
+    ShopSettings,
+    Shopper,
+    StockLot,
+    StockMovement,
+    Supplier,
+    SupplierReturn,
+    SupplierReturnLine,
+)
+from app.qty import to_store
 from app.services.stock import apply_movement, backfill_opening_lots
 from app.timeutil import utcnow
+
+GROCERY_SKUS = frozenset(
+    {
+        "ATA-5KG",
+        "RCE-1KG",
+        "SLT-1KG",
+        "SGR-1KG",
+        "OIL-1L",
+        "MUS-500",
+        "PGL-250",
+        "NMO-200",
+        "TEA-250",
+        "SOAP-4",
+        "DTRG-1",
+        "MLK-1L",
+    }
+)
 
 
 def idr(rupiah: int) -> int:
@@ -15,6 +53,7 @@ def idr(rupiah: int) -> int:
 
 SEED_CATEGORIES = [
     ("Cement & concrete", "Semen & beton"),
+    ("Masonry", "Bata"),
     ("Steel", "Besi"),
     ("Wood", "Kayu"),
     ("Paint", "Cat"),
@@ -23,6 +62,8 @@ SEED_CATEGORIES = [
     ("Hardware", "Perkakas"),
     ("Roofing", "Atap"),
     ("Flooring", "Lantai"),
+    ("Doors & windows", "Kusen & pintu"),
+    ("Sanitary", "Sanitasi"),
 ]
 SEED_LOCATIONS = [
     ("Yard", "Halaman"),
@@ -200,10 +241,837 @@ SEED_ITEMS = [
         "Steel head with wooden handle.",
         "Kepala baja gagang kayu.",
     ),
+    (
+        "SPL-M3",
+        "Crushed stone 1/2 (m³)",
+        "Batu split 1/2 (m³)",
+        "Cement & concrete",
+        "Yard",
+        16,
+        4,
+        320000,
+        400000,
+        "m3",
+        "Half-inch crushed stone for concrete mix.",
+        "Batu split ukuran 1/2 untuk adukan beton.",
+    ),
+    (
+        "CEM-INS",
+        "Instant mortar 40 kg",
+        "Semen instan 40 kg",
+        "Cement & concrete",
+        "Warehouse",
+        36,
+        8,
+        45000,
+        58000,
+        "bag",
+        "Premixed mortar for plaster and tile.",
+        "Semen instan untuk plester dan keramik.",
+    ),
+    (
+        "BTK-1",
+        "Concrete block",
+        "Batako",
+        "Masonry",
+        "Yard",
+        400,
+        80,
+        2500,
+        3500,
+        "pcs",
+        "Standard grey concrete block.",
+        "Batako abu-abu standar.",
+    ),
+    (
+        "BTA-1",
+        "Red clay brick",
+        "Bata merah",
+        "Masonry",
+        "Yard",
+        800,
+        200,
+        800,
+        1200,
+        "pcs",
+        "Fired clay brick for walls.",
+        "Bata merah bakar untuk dinding.",
+    ),
+    (
+        "PLY-9",
+        "Plywood 9 mm 122×244",
+        "Triplek 9 mm 122×244",
+        "Wood",
+        "Warehouse",
+        22,
+        6,
+        95000,
+        125000,
+        "sheet",
+        "Interior plywood sheet.",
+        "Lembar triplek interior.",
+    ),
+    (
+        "PNT-EXT",
+        "Exterior wall paint 5 L",
+        "Cat tembok eksterior 5 L",
+        "Paint",
+        "Front counter",
+        18,
+        5,
+        95000,
+        125000,
+        "pail",
+        "Weather-resistant exterior emulsion.",
+        "Cat emulsi eksterior tahan cuaca.",
+    ),
+    (
+        "ELB-4",
+        "PVC elbow 4 in",
+        "Knee PVC 4 in",
+        "Plumbing",
+        "Front counter",
+        60,
+        16,
+        8000,
+        12000,
+        "pcs",
+        "90-degree AW PVC elbow.",
+        "Knee PVC AW 90 derajat.",
+    ),
+    (
+        "GLU-PVC",
+        "PVC cement 100 g",
+        "Lem pipa PVC 100 g",
+        "Plumbing",
+        "Front counter",
+        40,
+        10,
+        15000,
+        22000,
+        "pcs",
+        "Solvent cement for PVC joints.",
+        "Lem pipa untuk sambungan PVC.",
+    ),
+    (
+        "SWT-1",
+        "1-gang light switch",
+        "Saklar tunggal",
+        "Electrical",
+        "Front counter",
+        48,
+        12,
+        8000,
+        14000,
+        "pcs",
+        "White flush-mount switch.",
+        "Saklar tanam warna putih.",
+    ),
+    (
+        "SCK-1",
+        "Wall socket",
+        "Stop kontak",
+        "Electrical",
+        "Front counter",
+        48,
+        12,
+        9000,
+        15000,
+        "pcs",
+        "Grounded flush-mount outlet.",
+        "Stop kontak tanam dengan grounding.",
+    ),
+    (
+        "SCR-1",
+        "Wood screws 1 in (box)",
+        "Sekrup kayu 1 in (dus)",
+        "Hardware",
+        "Front counter",
+        30,
+        8,
+        18000,
+        25000,
+        "box",
+        "About 100 zinc screws.",
+        "Sekitar 100 sekrup seng.",
+    ),
+    (
+        "GYP-9",
+        "Gypsum board 9 mm",
+        "Papan gypsum 9 mm",
+        "Wood",
+        "Warehouse",
+        28,
+        8,
+        55000,
+        72000,
+        "sheet",
+        "Ceiling and partition board.",
+        "Papan plafon dan partisi.",
+    ),
+    (
+        "WPF-4",
+        "Waterproofing 4 kg",
+        "Waterproofing 4 kg",
+        "Paint",
+        "Front counter",
+        16,
+        4,
+        85000,
+        115000,
+        "pail",
+        "Cementitious waterproof coating.",
+        "Cat pelapis anti bocor berbahan semen.",
+    ),
+    (
+        "SHV-1",
+        "Square-point shovel",
+        "Sekop pasir",
+        "Hardware",
+        "Front counter",
+        12,
+        4,
+        35000,
+        48000,
+        "pcs",
+        "Steel blade with wooden handle.",
+        "Mata baja gagang kayu.",
+    ),
+    (
+        "RBR-8",
+        "Rebar 8 mm (stick)",
+        "Besi beton 8 mm (batang)",
+        "Steel",
+        "Yard",
+        90,
+        24,
+        18000,
+        23000,
+        "stick",
+        "Deformed steel bar 8 millimetres.",
+        "Besi beton ulir 8 milimeter.",
+    ),
+    (
+        "RBR-16",
+        "Rebar 16 mm (stick)",
+        "Besi beton 16 mm (batang)",
+        "Steel",
+        "Yard",
+        36,
+        10,
+        75000,
+        95000,
+        "stick",
+        "Deformed steel bar 16 millimetres.",
+        "Besi beton ulir 16 milimeter.",
+    ),
+    (
+        "HLS-44",
+        "Hollow 4×4 6 m",
+        "Hollow 4×4 6 m",
+        "Steel",
+        "Yard",
+        40,
+        10,
+        42000,
+        55000,
+        "stick",
+        "Square hollow section for canopy and frame.",
+        "Hollow kotak untuk kanopi dan rangka.",
+    ),
+    (
+        "SKU-40",
+        "Angle iron 40×40 6 m",
+        "Besi siku 40×40 6 m",
+        "Steel",
+        "Yard",
+        28,
+        8,
+        48000,
+        62000,
+        "stick",
+        "Equal angle 40 millimetres.",
+        "Besi siku sama kaki 40 milimeter.",
+    ),
+    (
+        "WBD-1",
+        "Tie wire 1 kg",
+        "Kawat bendrat 1 kg",
+        "Steel",
+        "Front counter",
+        40,
+        10,
+        18000,
+        25000,
+        "kg",
+        "Soft annealed wire for tying rebar.",
+        "Kawat lunak untuk ikat besi beton.",
+    ),
+    (
+        "WRM-M8",
+        "Welded mesh M8",
+        "Kawat ram M8",
+        "Steel",
+        "Yard",
+        18,
+        4,
+        85000,
+        110000,
+        "sheet",
+        "Welded wire mesh sheet.",
+        "Lembar kawat ram las.",
+    ),
+    (
+        "PVC-05",
+        "PVC pipe ½ in × 4 m",
+        "Pipa PVC ½ in × 4 m",
+        "Plumbing",
+        "Warehouse",
+        50,
+        12,
+        12000,
+        18000,
+        "pcs",
+        "AW pipe for clean water.",
+        "Pipa PVC AW untuk air bersih.",
+    ),
+    (
+        "PVC-075",
+        "PVC pipe ¾ in × 4 m",
+        "Pipa PVC ¾ in × 4 m",
+        "Plumbing",
+        "Warehouse",
+        44,
+        12,
+        18000,
+        26000,
+        "pcs",
+        "AW pipe for clean water.",
+        "Pipa PVC AW untuk air bersih.",
+    ),
+    (
+        "PVC-1",
+        "PVC pipe 1 in × 4 m",
+        "Pipa PVC 1 in × 4 m",
+        "Plumbing",
+        "Warehouse",
+        36,
+        10,
+        28000,
+        38000,
+        "pcs",
+        "AW pipe for clean water.",
+        "Pipa PVC AW untuk air bersih.",
+    ),
+    (
+        "SOK-05",
+        "PVC socket ½ in",
+        "Sock PVC ½ in",
+        "Plumbing",
+        "Front counter",
+        80,
+        20,
+        2500,
+        4000,
+        "pcs",
+        "Straight coupler.",
+        "Sambungan lurus pipa.",
+    ),
+    (
+        "TEE-05",
+        "PVC tee ½ in",
+        "Tee PVC ½ in",
+        "Plumbing",
+        "Front counter",
+        60,
+        16,
+        3500,
+        5500,
+        "pcs",
+        "Three-way fitting.",
+        "Sambungan cabang tiga.",
+    ),
+    (
+        "CAP-05",
+        "PVC cap ½ in",
+        "Dop PVC ½ in",
+        "Plumbing",
+        "Front counter",
+        70,
+        16,
+        2000,
+        3500,
+        "pcs",
+        "End cap.",
+        "Tutup ujung pipa.",
+    ),
+    (
+        "NYA-25",
+        "NYA cable 2.5 mm (m)",
+        "Kabel NYA 2.5 mm (m)",
+        "Electrical",
+        "Front counter",
+        180,
+        40,
+        4500,
+        6500,
+        "m",
+        "Single-core cable, sold by the metre.",
+        "Kabel serabut tunggal, dijual per meter.",
+    ),
+    (
+        "MCB-6",
+        "MCB 6 A",
+        "MCB 6 A",
+        "Electrical",
+        "Front counter",
+        24,
+        6,
+        22000,
+        35000,
+        "pcs",
+        "Miniature circuit breaker.",
+        "Pemutus arus mini.",
+    ),
+    (
+        "LMP-10",
+        "LED bulb 10 W",
+        "Lampu LED 10 W",
+        "Electrical",
+        "Front counter",
+        40,
+        10,
+        12000,
+        18000,
+        "pcs",
+        "Warm white E27 bulb.",
+        "Bohlam E27 putih hangat.",
+    ),
+    (
+        "FIT-E27",
+        "Lamp holder E27",
+        "Fitting lampu E27",
+        "Electrical",
+        "Front counter",
+        36,
+        10,
+        6000,
+        10000,
+        "pcs",
+        "Ceiling pendant holder.",
+        "Fitting gantung plafon.",
+    ),
+    (
+        "TAP-EL",
+        "Electrical tape",
+        "Isolasi listrik",
+        "Electrical",
+        "Front counter",
+        50,
+        12,
+        4000,
+        7000,
+        "roll",
+        "PVC insulating tape.",
+        "Isolasi PVC.",
+    ),
+    (
+        "SPD-03",
+        "Spandek sheet 0.3 mm",
+        "Spandek 0.3 mm",
+        "Roofing",
+        "Yard",
+        20,
+        5,
+        85000,
+        110000,
+        "sheet",
+        "Corrugated metal roof sheet.",
+        "Atap metal gelombang.",
+    ),
+    (
+        "RDG-1",
+        "Ridge cap",
+        "Nok atap",
+        "Roofing",
+        "Yard",
+        16,
+        4,
+        28000,
+        38000,
+        "sheet",
+        "Ridge flashing for zinc or spandek.",
+        "Nok untuk seng atau spandek.",
+    ),
+    (
+        "GTR-4",
+        "Gutter 4 m",
+        "Talang 4 m",
+        "Roofing",
+        "Yard",
+        14,
+        4,
+        45000,
+        62000,
+        "pcs",
+        "Galvanised rain gutter.",
+        "Talang hujan galvanis.",
+    ),
+    (
+        "GNT-1",
+        "Concrete roof tile",
+        "Genteng beton",
+        "Roofing",
+        "Yard",
+        300,
+        60,
+        3500,
+        5000,
+        "pcs",
+        "Grey concrete tile.",
+        "Genteng beton abu-abu.",
+    ),
+    (
+        "THN-1",
+        "Thinner 1 L",
+        "Thinner 1 L",
+        "Paint",
+        "Front counter",
+        20,
+        6,
+        18000,
+        25000,
+        "L",
+        "Paint thinner.",
+        "Pengencer cat.",
+    ),
+    (
+        "BRS-4",
+        "Paint brush 4 in",
+        "Kuas cat 4 in",
+        "Paint",
+        "Front counter",
+        30,
+        8,
+        12000,
+        18000,
+        "pcs",
+        "Wall brush.",
+        "Kuas tembok.",
+    ),
+    (
+        "ROL-9",
+        "Paint roller 9 in",
+        "Rol cat 9 in",
+        "Paint",
+        "Front counter",
+        22,
+        6,
+        18000,
+        28000,
+        "pcs",
+        "Roller with handle.",
+        "Rol cat dengan gagang.",
+    ),
+    (
+        "PLM-5",
+        "Wall putty 5 kg",
+        "Plamir tembok 5 kg",
+        "Paint",
+        "Front counter",
+        18,
+        5,
+        35000,
+        48000,
+        "bag",
+        "Interior skim coat.",
+        "Plamir untuk meratakan dinding.",
+    ),
+    (
+        "KSO-4",
+        "Kaso 4/6 4 m",
+        "Kaso 4/6 4 m",
+        "Wood",
+        "Warehouse",
+        40,
+        10,
+        18000,
+        25000,
+        "pcs",
+        "Roof batten.",
+        "Kaso atap.",
+    ),
+    (
+        "PLN-20",
+        "Board 20 cm 4 m",
+        "Papan 20 cm 4 m",
+        "Wood",
+        "Warehouse",
+        24,
+        6,
+        42000,
+        55000,
+        "pcs",
+        "Sawn board.",
+        "Papan gergajian.",
+    ),
+    (
+        "GRT-1",
+        "Tile grout 1 kg",
+        "Nat keramik 1 kg",
+        "Flooring",
+        "Front counter",
+        28,
+        8,
+        12000,
+        18000,
+        "kg",
+        "White joint filler.",
+        "Pengisi nat warna putih.",
+    ),
+    (
+        "TLE-W25",
+        "Wall tile 25×40 (box)",
+        "Keramik dinding 25×40 (dus)",
+        "Flooring",
+        "Warehouse",
+        22,
+        6,
+        68000,
+        89000,
+        "box",
+        "Glazed wall tile.",
+        "Keramik dinding mengkilap.",
+    ),
+    (
+        "CEM-W",
+        "White cement 40 kg",
+        "Semen putih 40 kg",
+        "Flooring",
+        "Warehouse",
+        16,
+        4,
+        72000,
+        95000,
+        "bag",
+        "For grout, putty, and finishing.",
+        "Untuk nat, plamir, dan finishing.",
+    ),
+    (
+        "DOR-90",
+        "Interior door 90 cm",
+        "Pintu interior 90 cm",
+        "Doors & windows",
+        "Warehouse",
+        8,
+        2,
+        450000,
+        580000,
+        "pcs",
+        "Plywood flush door leaf.",
+        "Daun pintu triplek.",
+    ),
+    (
+        "KUS-90",
+        "Door frame 90 cm",
+        "Kusen pintu 90 cm",
+        "Doors & windows",
+        "Warehouse",
+        8,
+        2,
+        280000,
+        350000,
+        "set",
+        "Softwood door jamb set.",
+        "Set kusen kayu.",
+    ),
+    (
+        "HNG-4",
+        "Butt hinge 4 in (pair)",
+        "Engsel 4 in (pasang)",
+        "Doors & windows",
+        "Front counter",
+        30,
+        8,
+        12000,
+        18000,
+        "set",
+        "Two steel hinges.",
+        "Satu pasang engsel baja.",
+    ),
+    (
+        "GLS-5",
+        "Clear glass 5 mm (m²)",
+        "Kaca bening 5 mm (m²)",
+        "Doors & windows",
+        "Warehouse",
+        15,
+        4,
+        85000,
+        110000,
+        "m2",
+        "Sold by the square metre.",
+        "Dijual per meter persegi.",
+    ),
+    (
+        "TAP-1",
+        "Basin tap",
+        "Kran wastafel",
+        "Sanitary",
+        "Front counter",
+        20,
+        5,
+        35000,
+        55000,
+        "pcs",
+        "Chrome basin mixer.",
+        "Kran wastafel krom.",
+    ),
+    (
+        "TAP-G",
+        "Garden tap ½ in",
+        "Kran taman ½ in",
+        "Sanitary",
+        "Front counter",
+        24,
+        6,
+        25000,
+        38000,
+        "pcs",
+        "Brass hose bib.",
+        "Kran kuningan untuk selang.",
+    ),
+    (
+        "FDR-3",
+        "Floor drain 3 in",
+        "Floor drain 3 in",
+        "Sanitary",
+        "Front counter",
+        28,
+        8,
+        18000,
+        28000,
+        "pcs",
+        "Stainless floor waste.",
+        "Saringan lantai stainless.",
+    ),
+    (
+        "WCL-1",
+        "Close-coupled toilet",
+        "Closet duduk",
+        "Sanitary",
+        "Warehouse",
+        6,
+        2,
+        450000,
+        620000,
+        "set",
+        "Ceramic toilet with cistern.",
+        "Closet keramik dengan tangki.",
+    ),
+    (
+        "WSH-1",
+        "Washbasin",
+        "Wastafel",
+        "Sanitary",
+        "Warehouse",
+        8,
+        2,
+        180000,
+        250000,
+        "pcs",
+        "Wall-hung ceramic basin.",
+        "Wastafel keramik gantung.",
+    ),
+]
+
+SEED_SUPPLIERS = [
+    ("PT Semen Sejahtera", "0274-555-1100", "Cement, mortar, white cement"),
+    ("Toko Besi Maju Jaya", "0274-555-2200", "Rebar, hollow, mesh, wire"),
+    ("CV Cat Abadi", "0274-555-3300", "Paint, thinner, waterproofing"),
 ]
 
 
+def _is_grocery_catalog(db: Session) -> bool:
+    skus = set(db.scalars(select(Item.sku)).all())
+    return bool(skus & GROCERY_SKUS)
+
+
+def _wipe_catalog_and_sales(db: Session) -> None:
+    db.execute(delete(LotConsumption))
+    db.execute(delete(StockLot))
+    db.execute(delete(StockMovement))
+    db.execute(delete(InvoiceLine))
+    db.execute(delete(Invoice))
+    db.execute(delete(PurchaseOrderLine))
+    db.execute(delete(PurchaseOrder))
+    db.execute(delete(RestockLine))
+    db.execute(delete(Restock))
+    db.execute(delete(DamageLine))
+    db.execute(delete(DamageNote))
+    db.execute(delete(SupplierReturnLine))
+    db.execute(delete(SupplierReturn))
+    db.execute(delete(Item))
+    db.execute(delete(Category))
+    db.execute(delete(Location))
+    db.flush()
+
+
+def _ensure_catalog(db: Session) -> None:
+    now = utcnow()
+    cats = {c.name: c for c in db.scalars(select(Category)).all()}
+    for en, idn in SEED_CATEGORIES:
+        if en not in cats:
+            cats[en] = Category(name=en, name_id=idn, created_at=now)
+            db.add(cats[en])
+    locs = {loc.name: loc for loc in db.scalars(select(Location)).all()}
+    for en, idn in SEED_LOCATIONS:
+        if en not in locs:
+            locs[en] = Location(name=en, name_id=idn, created_at=now)
+            db.add(locs[en])
+    db.flush()
+    existing = set(db.scalars(select(Item.sku)).all())
+    for row in SEED_ITEMS:
+        sku, name, name_id, cat, loc, qty, reorder, cost, price, unit, desc, desc_id = row
+        if sku in existing:
+            continue
+        item = Item(
+            sku=sku,
+            name=name,
+            name_id=name_id,
+            description=desc,
+            description_id=desc_id,
+            category_id=cats[cat].id,
+            location_id=locs[loc].id,
+            quantity=0,
+            unit=unit,
+            reorder_point=to_store(reorder),
+            unit_cost_cents=idr(cost),
+            unit_price_cents=idr(price),
+            notes="",
+            archived=0,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(item)
+        db.flush()
+        if qty > 0:
+            apply_movement(
+                db,
+                item_id=item.id,
+                kind="in",
+                quantity=to_store(qty),
+                reason="Opening stock",
+                purpose="opening",
+                unit_cost_cents=idr(cost),
+            )
+
+
 def seed_if_empty(db: Session) -> None:
+    replaced_grocery = _is_grocery_catalog(db)
+    if replaced_grocery:
+        _wipe_catalog_and_sales(db)
+
     settings = db.get(ShopSettings, 1)
     if settings is None:
         db.add(
@@ -231,59 +1099,28 @@ def seed_if_empty(db: Session) -> None:
     else:
         settings.currency_symbol = "Rp"
         settings.currency_code = "IDR"
-        if settings.name in ("The Corner Shop", "Corner Shop", "My Shop"):
+        if settings.name in ("The Corner Shop", "Corner Shop", "My Shop") or replaced_grocery:
             settings.name = "Toko Bangunan Makmur"
             settings.address = "Jl. Magelang Km. 5, Yogyakarta"
             settings.phone = "+62 274-555-2210"
+        if replaced_grocery:
+            settings.next_invoice_seq = 1
+            settings.next_po_seq = 1
+            settings.next_restock_seq = 1
+            settings.next_damage_seq = 1
+            settings.next_return_seq = 1
 
-    if db.scalar(select(func.count()).select_from(Category)) == 0:
-        now = utcnow()
-        cats = {}
-        for en, idn in SEED_CATEGORIES:
-            cats[en] = Category(name=en, name_id=idn, created_at=now)
-            db.add(cats[en])
-        locs = {}
-        for en, idn in SEED_LOCATIONS:
-            locs[en] = Location(name=en, name_id=idn, created_at=now)
-            db.add(locs[en])
-        db.flush()
-        for row in SEED_ITEMS:
-            sku, name, name_id, cat, loc, qty, reorder, cost, price, unit, desc, desc_id = row
-            item = Item(
-                sku=sku,
-                name=name,
-                name_id=name_id,
-                description=desc,
-                description_id=desc_id,
-                category_id=cats[cat].id,
-                location_id=locs[loc].id,
-                quantity=0,
-                unit=unit,
-                reorder_point=reorder,
-                unit_cost_cents=idr(cost),
-                unit_price_cents=idr(price),
-                notes="",
-                archived=0,
-                created_at=now,
-                updated_at=now,
-            )
-            db.add(item)
-            db.flush()
-            if qty > 0:
-                apply_movement(
-                    db,
-                    item_id=item.id,
-                    kind="in",
-                    quantity=qty,
-                    reason="Opening stock",
-                    purpose="opening",
-                    unit_cost_cents=idr(cost),
-                )
+    _ensure_catalog(db)
 
     if db.scalar(select(func.count()).select_from(Shopper)) == 0:
         now = utcnow()
         db.add(Shopper(name="Siti Aminah", phone="081234567890", email="siti@example.com", created_at=now))
         db.add(Shopper(name="Budi Santoso", phone="081298765432", email="", created_at=now))
+
+    if db.scalar(select(func.count()).select_from(Supplier)) == 0:
+        now = utcnow()
+        for name, phone, notes in SEED_SUPPLIERS:
+            db.add(Supplier(name=name, phone=phone, notes=notes, created_at=now))
 
     backfill_opening_lots(db)
     db.commit()

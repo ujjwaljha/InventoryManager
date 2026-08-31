@@ -17,13 +17,15 @@ from app.schemas import (
     PurchaseOrderOut,
     SettingsOut,
 )
-from app.services.checkout import compute_tax_cents, get_settings, line_total
+from app.qty import from_store, money_qty
+from app.services.checkout import balance_cents, compute_tax_cents, get_settings, line_total, paid_cents
 from app.services.stock import lot_stats
 from app.timeutil import today_shop
 
 
-def item_out(item: Item) -> ItemOut:
+def item_out(item: Item, reserved: int = 0) -> ItemOut:
     fifo_cogs, value = lot_stats(item)
+    sellable = max(0, item.quantity - reserved)
     return ItemOut(
         id=item.id,
         sku=item.sku,
@@ -37,9 +39,11 @@ def item_out(item: Item) -> ItemOut:
         location_id=item.location_id,
         location_name=item.location.name if item.location else None,
         location_name_id=(item.location.name_id or item.location.name) if item.location else None,
-        quantity=item.quantity,
+        quantity=from_store(item.quantity),
+        available=from_store(sellable),
+        reserved=from_store(reserved),
         unit=item.unit,
-        reorder_point=item.reorder_point,
+        reorder_point=from_store(item.reorder_point),
         unit_cost_cents=item.unit_cost_cents,
         fifo_cogs_cents=fifo_cogs,
         inventory_value_cents=value,
@@ -62,8 +66,8 @@ def movement_out(mov: StockMovement) -> MovementOut:
         item_name_id=(item.name_id or item.name) if item else None,
         kind=mov.kind,
         purpose=mov.purpose or "",
-        quantity_delta=mov.quantity_delta,
-        quantity_after=mov.quantity_after,
+        quantity_delta=from_store(mov.quantity_delta),
+        quantity_after=from_store(mov.quantity_after),
         reason=mov.reason or "",
         cogs_cents=mov.cogs_cents or 0,
         unit_cost_cents=mov.unit_cost_cents or 0,
@@ -102,13 +106,17 @@ def invoice_out(inv: Invoice) -> InvoiceOut:
         issued_at=inv.issued_at,
         paid_at=inv.paid_at,
         voided_at=inv.voided_at,
+        due_date=getattr(inv, "due_date", None),
+        amount_paid_cents=paid_cents(inv),
+        balance_cents=balance_cents(inv),
         lines=[
             InvoiceLineOut(
                 id=ln.id,
                 sku=ln.sku,
                 name=ln.name,
                 name_id=ln.name_id or ln.name,
-                quantity=ln.quantity,
+                quantity=from_store(ln.quantity),
+                unit=getattr(ln, "unit", None) or "ea",
                 unit_price_cents=ln.unit_price_cents,
                 line_total_cents=ln.line_total_cents,
                 cogs_cents=getattr(ln, "cogs_cents", 0) or 0,
@@ -158,10 +166,11 @@ def po_out(po: PurchaseOrder, settings: ShopSettings | None = None) -> PurchaseO
                 sku=ln.sku,
                 name=ln.name,
                 name_id=ln.name_id or ln.name,
-                quantity=ln.quantity,
+                quantity=from_store(ln.quantity),
+                unit=ln.item.unit if ln.item is not None else "ea",
                 unit_price_cents=ln.unit_price_cents,
                 line_total_cents=line_total(ln.quantity, ln.unit_price_cents),
-                available=ln.item.quantity if ln.item is not None else None,
+                available=from_store(ln.item.quantity) if ln.item is not None else None,
             )
             for ln in po.lines
         ],
@@ -188,6 +197,9 @@ def settings_out(s: ShopSettings) -> SettingsOut:
         return_prefix=getattr(s, "return_prefix", None) or "RTN",
         next_return_seq=int(getattr(s, "next_return_seq", None) or 1),
         shop_today=today_shop(),
+        pin_set=bool((getattr(s, "operator_pin_hash", None) or "").strip()),
+        allow_lan=bool(int(getattr(s, "allow_lan", 0) or 0)),
+        credit_days=int(getattr(s, "credit_days", 30) or 0),
     )
 
 
@@ -197,7 +209,7 @@ def po_out_with_settings(db, po: PurchaseOrder) -> PurchaseOrderOut:
 
 def restock_out(row: Restock) -> dict:
     supplier = row.supplier
-    total = sum(ln.quantity * ln.unit_cost_cents for ln in row.lines)
+    total = sum(money_qty(ln.quantity, ln.unit_cost_cents) for ln in row.lines)
     return {
         "id": row.id,
         "number": row.number,
@@ -217,9 +229,9 @@ def restock_out(row: Restock) -> dict:
                 "sku": ln.sku,
                 "name": ln.name,
                 "name_id": ln.name_id or ln.name,
-                "quantity": ln.quantity,
+                "quantity": from_store(ln.quantity),
                 "unit_cost_cents": ln.unit_cost_cents,
-                "line_total_cents": ln.quantity * ln.unit_cost_cents,
+                "line_total_cents": money_qty(ln.quantity, ln.unit_cost_cents),
             }
             for ln in row.lines
         ],
@@ -240,7 +252,7 @@ def damage_out(row: DamageNote) -> dict:
                 "sku": ln.sku,
                 "name": ln.name,
                 "name_id": ln.name_id or ln.name,
-                "quantity": ln.quantity,
+                "quantity": from_store(ln.quantity),
                 "cogs_cents": ln.cogs_cents,
             }
             for ln in row.lines
@@ -266,7 +278,7 @@ def supplier_return_out(row: SupplierReturn) -> dict:
                 "sku": ln.sku,
                 "name": ln.name,
                 "name_id": ln.name_id or ln.name,
-                "quantity": ln.quantity,
+                "quantity": from_store(ln.quantity),
                 "cogs_cents": ln.cogs_cents,
             }
             for ln in row.lines

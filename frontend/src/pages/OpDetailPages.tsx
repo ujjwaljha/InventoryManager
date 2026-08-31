@@ -1,10 +1,11 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, SharePanel, ThermalReceipt } from "../components/ui";
+import { InvoiceSheet, PinSettings, SharePanel, ThermalReceipt } from "../components/ui";
+import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
-import { centsFromRupiah, money, rupiahFromCents, unitLabel, when } from "../money";
-import type { Category, Invoice, Item, Movement, Settings, StockLot } from "../types";
+import { centsFromRupiah, formatQty, money, rupiahFromCents, unitLabel, when } from "../money";
+import type { Category, CsvImportResult, Invoice, Item, Location, Movement, Settings, StockLot } from "../types";
 
 export function OpItemDetail() {
   const { t, pick, locale } = useI18n();
@@ -13,6 +14,7 @@ export function OpItemDetail() {
   const [moves, setMoves] = useState<Movement[]>([]);
   const [lots, setLots] = useState<StockLot[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
+  const [locs, setLocs] = useState<Location[]>([]);
   const [qty, setQty] = useState("1");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -24,6 +26,7 @@ export function OpItemDetail() {
     setMoves(await api<Movement[]>(`/api/items/${id}/movements`));
     setLots(await api<StockLot[]>(`/api/items/${id}/lots`));
     setCats(await api<Category[]>("/api/categories"));
+    setLocs(await api<Location[]>("/api/locations"));
   }
 
   useEffect(() => {
@@ -60,6 +63,7 @@ export function OpItemDetail() {
         unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
         reorder_point: Number(fd.get("reorder")),
         category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
+        location_id: fd.get("location_id") ? Number(fd.get("location_id")) : null,
         notes: fd.get("notes"),
       }),
     });
@@ -76,8 +80,13 @@ export function OpItemDetail() {
         <div className="sku">{item.sku}</div>
         <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
         <p className="price" style={{ margin: 0 }}>
-          {t("onHand", { qty: item.quantity, unit: unitLabel(item.unit, locale) })}
+          {t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })}
         </p>
+        {(item.reserved || 0) > 0 ? (
+          <p className="muted">
+            {t("sellable")} {formatQty(item.available ?? item.quantity)} · {t("heldInCart", { qty: formatQty(item.reserved || 0) })}
+          </p>
+        ) : null}
         <p className="muted">
           {t("fifoCogs")}: {money(item.fifo_cogs_cents || item.unit_cost_cents)} · {t("stockValue")}{" "}
           {money(item.inventory_value_cents || 0)}
@@ -126,8 +135,19 @@ export function OpItemDetail() {
           </select>
         </label>
         <label>
+          {t("pickLocation")}
+          <select name="location_id" defaultValue={item.location_id || ""}>
+            <option value="">{t("none")}</option>
+            {locs.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {pick(loc.name, loc.name_id)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           {t("reorderPoint")}
-          <input name="reorder" type="number" defaultValue={item.reorder_point} />
+          <input name="reorder" type="number" step="any" defaultValue={item.reorder_point} />
         </label>
         <label>
           {t("notes")}
@@ -142,7 +162,7 @@ export function OpItemDetail() {
         <p className="muted">{t("fifoLayers")}</p>
         <label>
           {t("quantity")}
-          <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
+          <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
         </label>
         <label>
           {t("reason")}
@@ -176,7 +196,7 @@ export function OpItemDetail() {
               <tr key={lot.id}>
                 <td>{when(lot.received_at, locale)}</td>
                 <td>
-                  {lot.qty_remaining} / {lot.qty_original}
+                  {formatQty(lot.qty_remaining)} / {formatQty(lot.qty_original)}
                 </td>
                 <td>{money(lot.unit_cost_cents)}</td>
               </tr>
@@ -201,8 +221,8 @@ export function OpItemDetail() {
               <tr key={m.id}>
                 <td>{when(m.created_at, locale)}</td>
                 <td>{t(`kind_${m.kind}` as MsgKey)}</td>
-                <td>{m.quantity_delta}</td>
-                <td>{m.quantity_after}</td>
+                <td>{formatQty(m.quantity_delta)}</td>
+                <td>{formatQty(m.quantity_after)}</td>
                 <td className="muted">{m.reason}</td>
               </tr>
             ))}
@@ -227,8 +247,10 @@ export function OpNewItem() {
   const nav = useNavigate();
   const [error, setError] = useState("");
   const [cats, setCats] = useState<Category[]>([]);
+  const [locs, setLocs] = useState<Location[]>([]);
   useEffect(() => {
     api<Category[]>("/api/categories").then(setCats);
+    api<Location[]>("/api/locations").then(setLocs);
   }, []);
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -248,6 +270,7 @@ export function OpNewItem() {
           unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
           unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
           category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
+          location_id: fd.get("location_id") ? Number(fd.get("location_id")) : null,
         }),
       });
       nav(`/items/${created.id}`);
@@ -291,8 +314,19 @@ export function OpNewItem() {
         </select>
       </label>
       <label>
+        {t("pickLocation")}
+        <select name="location_id">
+          <option value="">{t("none")}</option>
+          {locs.map((loc) => (
+            <option key={loc.id} value={loc.id}>
+              {pick(loc.name, loc.name_id)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
         {t("openingQty")}
-        <input name="quantity" type="number" defaultValue={0} />
+        <input name="quantity" type="number" step="any" defaultValue={0} />
       </label>
       <label>
         {t("unit")}
@@ -330,7 +364,7 @@ export function OpInvoiceDetail() {
   }, [id]);
   if (!invoice) return <p className="muted">{error || t("loading")}</p>;
   return (
-    <div className="grid">
+    <div className="grid print-thermal">
       <div className="row no-print">
         <Link to="/invoices">{t("backInvoices")}</Link>
         <button className="btn ghost" onClick={() => window.print()}>
@@ -347,6 +381,8 @@ export function OpInvoiceDetail() {
             {t("markPaid")}
           </button>
         )}
+        {invoice.status === "issued" ? <PaymentForm invoice={invoice} onPaid={setInvoice} /> : null}
+        <DueDateForm invoice={invoice} onSaved={setInvoice} />
         {invoice.status === "issued" && (
           <button
             className="btn warn"
@@ -356,6 +392,18 @@ export function OpInvoiceDetail() {
             }}
           >
             {t("cancelOrder")}
+          </button>
+        )}
+        {invoice.status === "paid" && (
+          <button
+            className="btn ghost"
+            onClick={async () => {
+              if (!window.confirm(t("confirmUnpay"))) return;
+              await api(`/api/invoices/${id}/unpay`, { method: "POST" });
+              await load();
+            }}
+          >
+            {t("markUnpaid")}
           </button>
         )}
       </div>
@@ -388,6 +436,12 @@ export function OpSettings() {
         currency_symbol: "Rp",
         currency_code: "IDR",
         tax_rate_bps: Math.round(Number(fd.get("tax") || 0) * 100),
+        allow_lan: fd.get("allow_lan") === "on",
+        credit_days: Number(fd.get("credit_days") || 30),
+        ...(String(fd.get("invoice_prefix") || "").trim()
+          ? { invoice_prefix: String(fd.get("invoice_prefix") || "").trim() }
+          : {}),
+        ...(String(fd.get("po_prefix") || "").trim() ? { po_prefix: String(fd.get("po_prefix") || "").trim() } : {}),
       }),
     });
     setS(next);
@@ -397,6 +451,7 @@ export function OpSettings() {
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("shopSettings")}</h2>
       <SharePanel showRestore />
+      <PinSettings pinSet={Boolean(s.pin_set)} onChange={() => api<Settings>("/api/settings").then(setS)} />
       <form className="card form-grid" onSubmit={onSubmit}>
         <label>
           {t("shopName")}
@@ -418,16 +473,247 @@ export function OpSettings() {
           {t("taxPct")}
           <input name="tax" type="number" step="0.01" defaultValue={(s.tax_rate_bps / 100).toFixed(2)} />
         </label>
+        <label>
+          {t("creditDays")}
+          <input name="credit_days" type="number" min={0} max={365} defaultValue={s.credit_days ?? 30} />
+        </label>
+        <label>
+          {t("invoicePrefix")}
+          <input name="invoice_prefix" defaultValue={s.invoice_prefix} />
+        </label>
+        <label>
+          {t("poPrefix")}
+          <input name="po_prefix" defaultValue={s.po_prefix} />
+        </label>
+        <label className="row">
+          <input name="allow_lan" type="checkbox" defaultChecked={Boolean(s.allow_lan)} />
+          {t("allowLan")}
+        </label>
+        <p className="muted">{t("allowLanHint")}</p>
         <button className="btn" type="submit">
           {t("save")}
         </button>
         {saved && <span className="muted">{t("saved")}</span>}
       </form>
-      <div className="row">
+      <CatalogAdmin />
+      <div className="card form-grid">
+        <h3 style={{ margin: 0 }}>{t("importCsv")}</h3>
+        <p className="muted">{t("importHint")}</p>
+        <CsvImport />
         <a className="btn ghost" href="/api/export/items.csv">
           {t("exportCsv")}
         </a>
       </div>
     </div>
+  );
+}
+
+function CatalogAdmin() {
+  const { t } = useI18n();
+  const [cats, setCats] = useState<Category[]>([]);
+  const [locs, setLocs] = useState<Location[]>([]);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setCats(await api<Category[]>("/api/categories"));
+    setLocs(await api<Location[]>("/api/locations"));
+  }
+
+  useEffect(() => {
+    load().catch((e) => setError(e.message));
+  }, []);
+
+  return (
+    <div className="card form-grid">
+      <h3 style={{ margin: 0 }}>{t("catalogAdmin")}</h3>
+      {error && <div className="banner">{error}</div>}
+      <form
+        className="row"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const form = e.currentTarget;
+          const fd = new FormData(form);
+          const name = String(fd.get("cat") || "").trim();
+          if (!name) return;
+          setError("");
+          try {
+            await api("/api/categories", { method: "POST", body: JSON.stringify({ name, name_id: name }) });
+            form.reset();
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : t("couldNotCreate"));
+          }
+        }}
+      >
+        <label>
+          {t("addCategory")}
+          <input name="cat" />
+        </label>
+        <button className="btn" type="submit">
+          {t("addCategory")}
+        </button>
+      </form>
+      <NamedList
+        rows={cats}
+        onRename={async (id, name) => {
+          await api(`/api/categories/${id}`, { method: "PATCH", body: JSON.stringify({ name, name_id: name }) });
+          await load();
+        }}
+        onDelete={async (id, intoId) => {
+          const q = intoId ? `?into_id=${intoId}` : "";
+          await api(`/api/categories/${id}${q}`, { method: "DELETE" });
+          await load();
+        }}
+      />
+      <form
+        className="row"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const form = e.currentTarget;
+          const fd = new FormData(form);
+          const name = String(fd.get("loc") || "").trim();
+          if (!name) return;
+          setError("");
+          try {
+            await api("/api/locations", { method: "POST", body: JSON.stringify({ name, name_id: name }) });
+            form.reset();
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : t("couldNotCreate"));
+          }
+        }}
+      >
+        <label>
+          {t("addLocation")}
+          <input name="loc" />
+        </label>
+        <button className="btn" type="submit">
+          {t("addLocation")}
+        </button>
+      </form>
+      <NamedList
+        rows={locs}
+        onRename={async (id, name) => {
+          await api(`/api/locations/${id}`, { method: "PATCH", body: JSON.stringify({ name, name_id: name }) });
+          await load();
+        }}
+        onDelete={async (id, intoId) => {
+          const q = intoId ? `?into_id=${intoId}` : "";
+          await api(`/api/locations/${id}${q}`, { method: "DELETE" });
+          await load();
+        }}
+      />
+    </div>
+  );
+}
+
+function NamedList({
+  rows,
+  onRename,
+  onDelete,
+}: {
+  rows: { id: number; name: string; name_id?: string }[];
+  onRename: (id: number, name: string) => Promise<void>;
+  onDelete: (id: number, intoId?: number) => Promise<void>;
+}) {
+  const { t, pick } = useI18n();
+  const [error, setError] = useState("");
+  const [into, setInto] = useState<Record<number, string>>({});
+  if (!rows.length) return <p className="muted">{t("none")}</p>;
+  return (
+    <div className="grid">
+      {error && <div className="banner">{error}</div>}
+      {rows.map((row) => (
+        <form
+          key={row.id}
+          className="row"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const name = String(new FormData(e.currentTarget).get("name") || "").trim();
+            if (!name) return;
+            setError("");
+            try {
+              await onRename(row.id, name);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : t("couldNotCreate"));
+            }
+          }}
+        >
+          <input name="name" defaultValue={pick(row.name, row.name_id)} />
+          <button className="btn ghost" type="submit">
+            {t("rename")}
+          </button>
+          {rows.length > 1 ? (
+            <select value={into[row.id] || ""} onChange={(e) => setInto((cur) => ({ ...cur, [row.id]: e.target.value }))}>
+              <option value="">{t("mergeInto")}</option>
+              {rows
+                .filter((other) => other.id !== row.id)
+                .map((other) => (
+                  <option key={other.id} value={other.id}>
+                    {pick(other.name, other.name_id)}
+                  </option>
+                ))}
+            </select>
+          ) : null}
+          <button
+            className="btn warn"
+            type="button"
+            onClick={async () => {
+              const dest = Number(into[row.id] || 0);
+              const fromName = pick(row.name, row.name_id);
+              const destRow = rows.find((other) => other.id === dest);
+              const ok = destRow
+                ? window.confirm(t("confirmMerge", { from: fromName, into: pick(destRow.name, destRow.name_id) }))
+                : window.confirm(t("confirmDeleteNamed", { name: fromName }));
+              if (!ok) return;
+              setError("");
+              try {
+                await onDelete(row.id, dest || undefined);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t("couldNotCreate"));
+              }
+            }}
+          >
+            {t("deleteNamed")}
+          </button>
+        </form>
+      ))}
+    </div>
+  );
+}
+
+function CsvImport() {
+  const { t } = useI18n();
+  const [result, setResult] = useState<CsvImportResult | null>(null);
+  const [error, setError] = useState("");
+
+  return (
+    <>
+      <input
+        type="file"
+        accept=".csv,text/csv"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          setError("");
+          setResult(null);
+          const body = new FormData();
+          body.append("file", file);
+          try {
+            setResult(await api<CsvImportResult>("/api/import/items.csv", { method: "POST", body }));
+          } catch (err) {
+            setError(err instanceof Error ? err.message : t("couldNotCreate"));
+          }
+        }}
+      />
+      {error && <div className="banner">{error}</div>}
+      {result && (
+        <p className="muted">
+          {t("importOk", { created: result.created, updated: result.updated })}
+          {result.error_count ? ` ${result.error_count}` : ""}
+        </p>
+      )}
+    </>
   );
 }
