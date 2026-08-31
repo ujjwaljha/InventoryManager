@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Category, Item, Location, ShopSettings, Shopper
+from app.services.stock import apply_movement, backfill_opening_lots
 from app.timeutil import utcnow
 
 
@@ -13,187 +14,191 @@ def idr(rupiah: int) -> int:
 
 
 SEED_CATEGORIES = [
-    ("Staples", "Sembako"),
-    ("Oils", "Minyak"),
-    ("Snacks", "Makanan ringan"),
-    ("Household", "Rumah tangga"),
-    ("Dairy", "Susu"),
+    ("Cement & concrete", "Semen & beton"),
+    ("Steel", "Besi"),
+    ("Wood", "Kayu"),
+    ("Paint", "Cat"),
+    ("Plumbing", "Pipa & plumbing"),
+    ("Electrical", "Listrik"),
+    ("Hardware", "Perkakas"),
+    ("Roofing", "Atap"),
+    ("Flooring", "Lantai"),
 ]
 SEED_LOCATIONS = [
-    ("Front shelf", "Rak depan"),
-    ("Back store", "Gudang"),
-    ("Cooler", "Kulkas"),
+    ("Yard", "Halaman"),
+    ("Warehouse", "Gudang"),
+    ("Front counter", "Etalase"),
 ]
 
 # sku, name_en, name_id, category, location, qty, reorder, cost_idr, price_idr, unit, desc_en, desc_id
 SEED_ITEMS = [
     (
-        "ATA-5KG",
-        "Ramos Super Rice 5 kg",
-        "Beras Ramos Super 5 kg",
-        "Staples",
-        "Back store",
+        "CEM-50",
+        "Portland cement 50 kg",
+        "Semen Portland 50 kg",
+        "Cement & concrete",
+        "Warehouse",
+        48,
+        10,
+        52000,
+        65000,
+        "bag",
+        "One sack of grey Portland cement.",
+        "Satu sak semen Portland abu-abu.",
+    ),
+    (
+        "SND-M3",
+        "River sand (m³)",
+        "Pasir sungai (m³)",
+        "Cement & concrete",
+        "Yard",
+        20,
+        4,
+        280000,
+        350000,
+        "m3",
+        "Bulk river sand sold by the cubic metre.",
+        "Pasir sungai curah per meter kubik.",
+    ),
+    (
+        "RBR-10",
+        "Rebar 10 mm (stick)",
+        "Besi beton 10 mm (batang)",
+        "Steel",
+        "Yard",
+        80,
+        20,
+        28000,
+        35000,
+        "stick",
+        "Deformed steel bar 10 millimetres.",
+        "Besi beton ulir 10 milimeter.",
+    ),
+    (
+        "RBR-12",
+        "Rebar 12 mm (stick)",
+        "Besi beton 12 mm (batang)",
+        "Steel",
+        "Yard",
+        60,
+        16,
+        42000,
+        52000,
+        "stick",
+        "Deformed steel bar 12 millimetres.",
+        "Besi beton ulir 12 milimeter.",
+    ),
+    (
+        "WD-2X4",
+        "Meranti 2x4 timber 4 m",
+        "Kayu meranti 2x4 4 m",
+        "Wood",
+        "Warehouse",
+        36,
+        8,
+        38000,
+        48000,
+        "pcs",
+        "Rough meranti stud.",
+        "Kayu meranti kasar.",
+    ),
+    (
+        "PNT-5L",
+        "Interior wall paint 5 L",
+        "Cat tembok interior 5 L",
+        "Paint",
+        "Front counter",
         24,
         6,
-        72000,
-        78000,
-        "kg",
-        "Premium white rice.",
-        "Beras putih premium.",
+        85000,
+        110000,
+        "pail",
+        "White interior emulsion.",
+        "Cat emulsi interior putih.",
     ),
     (
-        "RCE-1KG",
-        "Pandan Wangi Rice 1 kg",
-        "Beras Pandan Wangi 1 kg",
-        "Staples",
-        "Back store",
+        "PVC-4",
+        "PVC pipe 4 in × 4 m",
+        "Pipa PVC 4 in × 4 m",
+        "Plumbing",
+        "Warehouse",
         40,
         10,
-        14000,
-        16500,
-        "kg",
-        "Fragrant rice.",
-        "Beras wangi.",
+        45000,
+        58000,
+        "pcs",
+        "AW PVC pipe for waste water.",
+        "Pipa PVC AW untuk air kotor.",
     ),
     (
-        "SLT-1KG",
-        "Refina Table Salt 1 kg",
-        "Garam Dapur Refina 1 kg",
-        "Staples",
-        "Front shelf",
+        "NAL-1",
+        "Wire nails 1 kg",
+        "Paku duri 1 kg",
+        "Hardware",
+        "Front counter",
         50,
         12,
-        6000,
-        8000,
+        14000,
+        18000,
         "kg",
-        "Iodized table salt.",
-        "Garam beryodium.",
+        "Mixed common nails.",
+        "Paku campuran.",
     ),
     (
-        "SGR-1KG",
-        "Gulaku Sugar 1 kg",
-        "Gula Pasir Gulaku 1 kg",
-        "Staples",
-        "Front shelf",
+        "WIR-2.5",
+        "NYM cable 2×2.5 mm (m)",
+        "Kabel NYM 2×2.5 mm (m)",
+        "Electrical",
+        "Front counter",
+        200,
+        40,
+        6500,
+        8500,
+        "m",
+        "Sold by the metre.",
+        "Dijual per meter.",
+    ),
+    (
+        "TLE-30",
+        "Ceramic tile 30×30 (box)",
+        "Keramik 30×30 (dus)",
+        "Flooring",
+        "Warehouse",
         30,
         8,
-        14500,
-        17500,
-        "kg",
-        "Granulated sugar.",
-        "Gula pasir.",
+        72000,
+        95000,
+        "box",
+        "Glazed floor tile, 11 pieces per box.",
+        "Keramik lantai mengkilap, 11 pcs per dus.",
     ),
     (
-        "OIL-1L",
-        "Tropical Cooking Oil 1 L",
-        "Minyak Goreng Tropical 1 L",
-        "Oils",
-        "Back store",
-        18,
-        5,
-        15500,
-        18000,
-        "L",
-        "Palm cooking oil.",
-        "Minyak goreng sawit.",
-    ),
-    (
-        "MUS-500",
-        "Bango Sweet Soy 550 ml",
-        "Kecap Manis Bango 550 ml",
-        "Oils",
-        "Front shelf",
-        16,
-        4,
-        14000,
-        18500,
-        "btl",
-        "Sweet soy sauce.",
-        "Kecap manis.",
-    ),
-    (
-        "PGL-250",
-        "Indomie Goreng (pack)",
-        "Indomie Goreng (bungkus)",
-        "Snacks",
-        "Front shelf",
-        60,
-        15,
-        2800,
-        3500,
-        "pack",
-        "Instant fried noodles.",
-        "Mi instan goreng.",
-    ),
-    (
-        "NMO-200",
-        "Chitato Snack 68 g",
-        "Chitato 68 g",
-        "Snacks",
-        "Front shelf",
-        22,
+        "ROF-ZN",
+        "Zinc roof sheet 0.3 mm",
+        "Seng atap 0.3 mm",
+        "Roofing",
+        "Yard",
+        25,
         6,
-        8500,
-        11000,
-        "pack",
-        "Potato chips.",
-        "Keripik kentang.",
+        48000,
+        62000,
+        "sheet",
+        "Corrugated galvanised sheet.",
+        "Seng gelombang galvanis.",
     ),
     (
-        "TEA-250",
-        "Sariwangi Tea Bags 25s",
-        "Teh Celup Sariwangi 25s",
-        "Staples",
-        "Front shelf",
-        20,
-        5,
-        9500,
-        12000,
-        "pack",
-        "Black tea bags.",
-        "Teh hitam celup.",
-    ),
-    (
-        "SOAP-4",
-        "Lifebuoy Soap pack of 4",
-        "Sabun Mandi Lifebuoy isi 4",
-        "Household",
-        "Front shelf",
+        "HAM-1",
+        "Claw hammer 16 oz",
+        "Palu cakar 16 oz",
+        "Hardware",
+        "Front counter",
         14,
         4,
-        13500,
-        16000,
-        "pack",
-        "Bath soap.",
-        "Sabun mandi.",
-    ),
-    (
-        "DTRG-1",
-        "Rinso Detergent 800 g",
-        "Deterjen Rinso 800 g",
-        "Household",
-        "Back store",
-        12,
-        3,
-        18500,
-        23000,
-        "pack",
-        "Laundry powder.",
-        "Deterjen bubuk.",
-    ),
-    (
-        "MLK-1L",
-        "Ultra Milk 1 L",
-        "Susu Ultra Milk 1 L",
-        "Dairy",
-        "Cooler",
-        28,
-        8,
-        15500,
-        18500,
-        "ctn",
-        "UHT milk.",
-        "Susu UHT.",
+        35000,
+        48000,
+        "pcs",
+        "Steel head with wooden handle.",
+        "Kepala baja gagang kayu.",
     ),
 ]
 
@@ -204,9 +209,9 @@ def seed_if_empty(db: Session) -> None:
         db.add(
             ShopSettings(
                 id=1,
-                name="Warung Pojok",
-                address="Jl. Malioboro No. 12, Yogyakarta",
-                phone="+62 274-555-0142",
+                name="Toko Bangunan Makmur",
+                address="Jl. Magelang Km. 5, Yogyakarta",
+                phone="+62 274-555-2210",
                 tax_rate_bps=0,
                 currency_symbol="Rp",
                 currency_code="IDR",
@@ -214,6 +219,12 @@ def seed_if_empty(db: Session) -> None:
                 next_invoice_seq=1,
                 po_prefix="PO",
                 next_po_seq=1,
+                restock_prefix="RST",
+                next_restock_seq=1,
+                damage_prefix="DMG",
+                next_damage_seq=1,
+                return_prefix="RTN",
+                next_return_seq=1,
             )
         )
         db.flush()
@@ -221,9 +232,9 @@ def seed_if_empty(db: Session) -> None:
         settings.currency_symbol = "Rp"
         settings.currency_code = "IDR"
         if settings.name in ("The Corner Shop", "Corner Shop", "My Shop"):
-            settings.name = "Warung Pojok"
-            settings.address = "Jl. Malioboro No. 12, Yogyakarta"
-            settings.phone = "+62 274-555-0142"
+            settings.name = "Toko Bangunan Makmur"
+            settings.address = "Jl. Magelang Km. 5, Yogyakarta"
+            settings.phone = "+62 274-555-2210"
 
     if db.scalar(select(func.count()).select_from(Category)) == 0:
         now = utcnow()
@@ -238,58 +249,41 @@ def seed_if_empty(db: Session) -> None:
         db.flush()
         for row in SEED_ITEMS:
             sku, name, name_id, cat, loc, qty, reorder, cost, price, unit, desc, desc_id = row
-            db.add(
-                Item(
-                    sku=sku,
-                    name=name,
-                    name_id=name_id,
-                    description=desc,
-                    description_id=desc_id,
-                    category_id=cats[cat].id,
-                    location_id=locs[loc].id,
-                    quantity=qty,
-                    unit=unit,
-                    reorder_point=reorder,
-                    unit_cost_cents=idr(cost),
-                    unit_price_cents=idr(price),
-                    notes="",
-                    archived=0,
-                    created_at=now,
-                    updated_at=now,
-                )
+            item = Item(
+                sku=sku,
+                name=name,
+                name_id=name_id,
+                description=desc,
+                description_id=desc_id,
+                category_id=cats[cat].id,
+                location_id=locs[loc].id,
+                quantity=0,
+                unit=unit,
+                reorder_point=reorder,
+                unit_cost_cents=idr(cost),
+                unit_price_cents=idr(price),
+                notes="",
+                archived=0,
+                created_at=now,
+                updated_at=now,
             )
+            db.add(item)
+            db.flush()
+            if qty > 0:
+                apply_movement(
+                    db,
+                    item_id=item.id,
+                    kind="in",
+                    quantity=qty,
+                    reason="Opening stock",
+                    purpose="opening",
+                    unit_cost_cents=idr(cost),
+                )
 
     if db.scalar(select(func.count()).select_from(Shopper)) == 0:
         now = utcnow()
         db.add(Shopper(name="Siti Aminah", phone="081234567890", email="siti@example.com", created_at=now))
         db.add(Shopper(name="Budi Santoso", phone="081298765432", email="", created_at=now))
 
-    _backfill_bilingual_idr(db)
+    backfill_opening_lots(db)
     db.commit()
-
-
-def _backfill_bilingual_idr(db: Session) -> None:
-    """Fill Indonesian names and IDR prices on an older (empty name_id) catalog."""
-    cat_id = {en: idn for en, idn in SEED_CATEGORIES}
-    for cat in db.scalars(select(Category)):
-        if not (cat.name_id or "").strip() and cat.name in cat_id:
-            cat.name_id = cat_id[cat.name]
-    loc_id = {en: idn for en, idn in SEED_LOCATIONS}
-    for loc in db.scalars(select(Location)):
-        if not (loc.name_id or "").strip() and loc.name in loc_id:
-            loc.name_id = loc_id[loc.name]
-
-    seed_by_sku = {row[0]: row for row in SEED_ITEMS}
-    for item in db.scalars(select(Item)):
-        row = seed_by_sku.get(item.sku)
-        if row is None:
-            continue
-        _sku, name, name_id, _cat, _loc, _qty, _reorder, cost, price, _unit, desc, desc_id = row
-        if (item.name_id or "").strip():
-            continue
-        item.name = name
-        item.name_id = name_id
-        item.description = desc
-        item.description_id = desc_id
-        item.unit_cost_cents = idr(cost)
-        item.unit_price_cents = idr(price)

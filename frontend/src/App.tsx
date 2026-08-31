@@ -4,17 +4,22 @@ import { api } from "./api";
 import { OpNav, ShopNav } from "./components/ui";
 import { OpDashboard, OpInvoices, OpItems, OpOrders } from "./pages/OpPages";
 import { OpInvoiceDetail, OpItemDetail, OpNewItem, OpSettings } from "./pages/OpDetailPages";
+import { DamagePage, MorePage, ReceiptDetail, ReceiptsPage, ReturnsPage } from "./pages/OfficePages";
+import { RestockDetail, RestockList, RestockNew } from "./pages/RestockPages";
+import { ReportsPage } from "./pages/ReportPages";
+import { TillPage } from "./pages/TillPage";
 import { ShopInvoiceDetail, ShopInvoices } from "./pages/ShopInvoicePages";
 import { ShopCart, ShopHome } from "./pages/ShopPages";
-import type { PurchaseOrder, Shopper } from "./types";
+import type { PurchaseOrder, Settings, Shopper } from "./types";
 import { useEffect, useState } from "react";
 
-function Brand({ to, kicker }: { to: string; kicker: string }) {
+function Brand({ to, kicker, name }: { to: string; kicker: string; name: string }) {
+  const letter = (name || "T").trim().charAt(0).toUpperCase();
   return (
     <Link to={to} className="brand">
-      <span className="mark">W</span>
+      <span className="mark">{letter}</span>
       <span>
-        Warung Pojok
+        {name}
         <div className="muted" style={{ fontFamily: "var(--sans)", fontSize: "0.78rem", fontWeight: 400 }}>
           {kicker}
         </div>
@@ -23,8 +28,23 @@ function Brand({ to, kicker }: { to: string; kicker: string }) {
   );
 }
 
+function useShopName() {
+  const { t } = useI18n();
+  const [name, setName] = useState(t("shopNameFallback"));
+  useEffect(() => {
+    api<Settings>("/api/settings")
+      .then((s) => {
+        setName(s.name);
+        document.title = s.name;
+      })
+      .catch(() => undefined);
+  }, [t]);
+  return name;
+}
+
 function ShopShell() {
   const { t } = useI18n();
+  const name = useShopName();
   const [shopper, setShopper] = useState<Shopper | null>(null);
   const [count, setCount] = useState(0);
 
@@ -47,7 +67,7 @@ function ShopShell() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Brand to="/shop" kicker={t("shopFloor")} />
+        <Brand to="/shop" kicker={t("shopFloor")} name={name} />
         <div className="row desktop-only">
           <NavLink to="/shop">{t("shop")}</NavLink>
           <NavLink to="/shop/order">
@@ -55,7 +75,7 @@ function ShopShell() {
             {count ? ` (${count})` : ""}
           </NavLink>
           <NavLink to="/shop/invoices">{t("invoices")}</NavLink>
-          <NavLink to="/">{t("operatorTill")}</NavLink>
+          <NavLink to="/">{t("backOffice")}</NavLink>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <LanguageSwitch />
@@ -82,22 +102,38 @@ function ShopShell() {
 function OpShell() {
   const { t } = useI18n();
   const loc = useLocation();
+  const name = useShopName();
   const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
   return (
     <div className="app-shell side">
       <aside className="sidebar desktop-only">
-        <Brand to="/" kicker={t("operatorTill")} />
+        <Brand to="/" kicker={t("backOffice")} name={name} />
         <NavLink to="/" end className={linkClass}>
           {t("home")}
+        </NavLink>
+        <NavLink to="/till" className={linkClass}>
+          {t("till")}
         </NavLink>
         <NavLink to="/items" className={linkClass}>
           {t("items")}
         </NavLink>
+        <NavLink to="/restock" className={linkClass}>
+          {t("restock")}
+        </NavLink>
+        <NavLink to="/receipts" className={linkClass}>
+          {t("receipts")}
+        </NavLink>
+        <NavLink to="/reports" className={linkClass}>
+          {t("reports")}
+        </NavLink>
+        <NavLink to="/damage" className={linkClass}>
+          {t("damage")}
+        </NavLink>
+        <NavLink to="/returns" className={linkClass}>
+          {t("returns")}
+        </NavLink>
         <NavLink to="/orders" className={linkClass}>
           {t("orders")}
-        </NavLink>
-        <NavLink to="/invoices" className={linkClass}>
-          {t("invoices")}
         </NavLink>
         <NavLink to="/settings" className={linkClass}>
           {t("settings")}
@@ -111,7 +147,7 @@ function OpShell() {
       </aside>
       <div>
         <header className="topbar">
-          <Brand to="/" kicker={t("operatorTill")} />
+          <Brand to="/" kicker={t("backOffice")} name={name} />
           <div className="row">
             <LanguageSwitch />
             <NavLink to="/shop" className="btn ghost">
@@ -121,13 +157,23 @@ function OpShell() {
         </header>
         <Routes>
           <Route path="/" element={<OpDashboard />} />
+          <Route path="/till" element={<TillPage />} />
           <Route path="/items" element={<OpItems />} />
           <Route path="/items/new" element={<OpNewItem />} />
           <Route path="/items/:id" element={<OpItemDetail />} />
+          <Route path="/restock" element={<RestockList />} />
+          <Route path="/restock/new" element={<RestockNew />} />
+          <Route path="/restock/:id" element={<RestockDetail />} />
+          <Route path="/receipts" element={<ReceiptsPage />} />
+          <Route path="/receipts/:id" element={<ReceiptDetail />} />
+          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/damage" element={<DamagePage />} />
+          <Route path="/returns" element={<ReturnsPage />} />
           <Route path="/orders" element={<OpOrders />} />
           <Route path="/invoices" element={<OpInvoices />} />
           <Route path="/invoices/:id" element={<OpInvoiceDetail />} />
           <Route path="/settings" element={<OpSettings />} />
+          <Route path="/more" element={<MorePage />} />
         </Routes>
       </div>
       <OpNav />

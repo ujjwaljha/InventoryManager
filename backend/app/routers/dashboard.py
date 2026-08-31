@@ -7,7 +7,7 @@ from app.models import Invoice, Item, PurchaseOrder, StockMovement
 from app.schemas import DashboardOut
 from app.serialize import item_out, movement_out
 from app.services.checkout import get_settings
-from app.timeutil import today_utc
+from app.timeutil import shop_day_bounds
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -19,19 +19,26 @@ def dashboard(db: Session = Depends(get_db)):
     units = db.scalar(select(func.coalesce(func.sum(Item.quantity), 0)).where(Item.archived == 0)) or 0
     items = list(
         db.execute(
-            select(Item).options(selectinload(Item.category), selectinload(Item.location)).where(Item.archived == 0)
+            select(Item)
+            .options(selectinload(Item.category), selectinload(Item.location), selectinload(Item.lots))
+            .where(Item.archived == 0)
         ).scalars()
     )
     low = [i for i in items if i.quantity <= i.reorder_point]
     draft_count = (
         db.scalar(select(func.count()).select_from(PurchaseOrder).where(PurchaseOrder.status == "draft")) or 0
     )
-    today = today_utc()
+    start, end = shop_day_bounds()
     today_orders = (
         db.scalar(
             select(func.count())
             .select_from(PurchaseOrder)
-            .where(PurchaseOrder.status == "placed", PurchaseOrder.placed_at.is_not(None), PurchaseOrder.placed_at.startswith(today))
+            .where(
+                PurchaseOrder.status == "placed",
+                PurchaseOrder.placed_at.is_not(None),
+                PurchaseOrder.placed_at >= start,
+                PurchaseOrder.placed_at < end,
+            )
         )
         or 0
     )
@@ -39,7 +46,8 @@ def dashboard(db: Session = Depends(get_db)):
         db.scalar(
             select(func.coalesce(func.sum(Invoice.total_cents), 0)).where(
                 Invoice.status.in_(("issued", "paid")),
-                Invoice.issued_at.startswith(today),
+                Invoice.issued_at >= start,
+                Invoice.issued_at < end,
             )
         )
         or 0

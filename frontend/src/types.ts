@@ -21,6 +21,8 @@ export type Item = {
   created_at: string;
   updated_at: string;
   low_stock: boolean;
+  fifo_cogs_cents?: number;
+  inventory_value_cents?: number;
 };
 
 export type Shopper = {
@@ -50,6 +52,7 @@ export type InvoiceLine = {
   quantity: number;
   unit_price_cents: number;
   line_total_cents: number;
+  cogs_cents?: number;
 };
 
 export type Invoice = {
@@ -70,6 +73,8 @@ export type Invoice = {
   shop_phone: string;
   currency_symbol: string;
   currency_code?: string;
+  salesperson_name?: string;
+  cogs_cents?: number;
   issued_at: string;
   paid_at: string | null;
   voided_at: string | null;
@@ -105,11 +110,17 @@ export type Movement = {
   item_name: string | null;
   item_name_id?: string | null;
   kind: string;
+  purpose?: string;
   quantity_delta: number;
   quantity_after: number;
   reason: string;
+  cogs_cents?: number;
+  unit_cost_cents?: number;
   purchase_order_id: number | null;
   invoice_id: number | null;
+  restock_id?: number | null;
+  damage_id?: number | null;
+  supplier_return_id?: number | null;
   created_at: string;
 };
 
@@ -147,4 +158,112 @@ export type Shortage = {
   name_id?: string;
   requested: number;
   available: number;
+};
+
+export type Category = { id: number; name: string; name_id?: string };
+
+export type Supplier = { id: number; name: string; phone: string; notes?: string };
+
+export type RestockLine = {
+  id: number;
+  item_id: number;
+  sku: string;
+  name: string;
+  name_id?: string;
+  quantity: number;
+  unit_cost_cents: number;
+  line_total_cents: number;
+};
+
+export type Restock = {
+  id: number;
+  number: string;
+  status: string;
+  note: string;
+  supplier_id: number | null;
+  supplier_name: string;
+  supplier_phone: string;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+  total_cost_cents: number;
+  lines: RestockLine[];
+};
+
+export type DamageNote = {
+  id: number;
+  number: string;
+  reason: string;
+  created_at: string;
+  cogs_cents: number;
+  lines: { id: number; item_id: number; sku: string; name: string; name_id?: string; quantity: number; cogs_cents: number }[];
+};
+
+export type SupplierReturn = {
+  id: number;
+  number: string;
+  reason: string;
+  created_at: string;
+  cogs_cents: number;
+  supplier_id: number | null;
+  supplier_name: string;
+  supplier_phone: string;
+  lines: { id: number; item_id: number; sku: string; name: string; name_id?: string; quantity: number; cogs_cents: number }[];
+};
+
+export type StockLot = {
+  id: number;
+  received_at: string;
+  unit_cost_cents: number;
+  qty_original: number;
+  qty_remaining: number;
+  source: string;
+  restock_id: number | null;
+};
+
+export type ReportItem = {
+  sku: string;
+  name: string;
+  name_id?: string;
+  category_id: number | null;
+  category_name: string;
+  category_name_id?: string;
+  quantity: number;
+  revenue_cents: number;
+  cogs_cents: number;
+  profit_cents: number;
+  margin_bps: number;
+};
+
+export type ReportCategory = {
+  category_id: number | null;
+  name: string;
+  name_id?: string;
+  quantity: number;
+  revenue_cents: number;
+  cogs_cents: number;
+  profit_cents: number;
+  margin_bps: number;
+};
+
+export type SalesReport = {
+  date_from: string;
+  date_to: string;
+  currency_symbol: string;
+  receipt_count: number;
+  revenue_cents: number;
+  cogs_cents: number;
+  profit_cents: number;
+  margin_bps: number;
+  receipts: Invoice[];
+  items: ReportItem[];
+  categories: ReportCategory[];
+};
+
+export type StockReport = {
+  currency_symbol: string;
+  sku_count: number;
+  units_on_hand: number;
+  inventory_value_cents: number;
+  items: Item[];
 };

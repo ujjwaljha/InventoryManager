@@ -1,16 +1,18 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, SharePanel } from "../components/ui";
+import { InvoiceSheet, SharePanel, ThermalReceipt } from "../components/ui";
 import { type MsgKey, useI18n } from "../i18n";
-import { centsFromRupiah, rupiahFromCents, unitLabel, when } from "../money";
-import type { Invoice, Item, Movement, Settings } from "../types";
+import { centsFromRupiah, money, rupiahFromCents, unitLabel, when } from "../money";
+import type { Category, Invoice, Item, Movement, Settings, StockLot } from "../types";
 
 export function OpItemDetail() {
   const { t, pick, locale } = useI18n();
   const { id } = useParams();
   const [item, setItem] = useState<Item | null>(null);
   const [moves, setMoves] = useState<Movement[]>([]);
+  const [lots, setLots] = useState<StockLot[]>([]);
+  const [cats, setCats] = useState<Category[]>([]);
   const [qty, setQty] = useState("1");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -20,6 +22,8 @@ export function OpItemDetail() {
     const it = await api<Item>(`/api/items/${id}`);
     setItem(it);
     setMoves(await api<Movement[]>(`/api/items/${id}/movements`));
+    setLots(await api<StockLot[]>(`/api/items/${id}/lots`));
+    setCats(await api<Category[]>("/api/categories"));
   }
 
   useEffect(() => {
@@ -55,6 +59,7 @@ export function OpItemDetail() {
         unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
         unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
         reorder_point: Number(fd.get("reorder")),
+        category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
         notes: fd.get("notes"),
       }),
     });
@@ -72,6 +77,10 @@ export function OpItemDetail() {
         <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
         <p className="price" style={{ margin: 0 }}>
           {t("onHand", { qty: item.quantity, unit: unitLabel(item.unit, locale) })}
+        </p>
+        <p className="muted">
+          {t("fifoCogs")}: {money(item.fifo_cogs_cents || item.unit_cost_cents)} · {t("stockValue")}{" "}
+          {money(item.inventory_value_cents || 0)}
         </p>
         {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
       </div>
@@ -102,8 +111,19 @@ export function OpItemDetail() {
           <input name="price" type="number" step="1" defaultValue={rupiahFromCents(item.unit_price_cents)} />
         </label>
         <label>
-          {t("cost")}
+          {t("lastCost")}
           <input name="cost" type="number" step="1" defaultValue={rupiahFromCents(item.unit_cost_cents)} />
+        </label>
+        <label>
+          {t("pickCategory")}
+          <select name="category_id" defaultValue={item.category_id || ""}>
+            <option value="">{t("none")}</option>
+            {cats.map((c) => (
+              <option key={c.id} value={c.id}>
+                {pick(c.name, c.name_id)}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           {t("reorderPoint")}
@@ -119,7 +139,7 @@ export function OpItemDetail() {
       </form>
       <div className="card form-grid">
         <h3 style={{ margin: 0 }}>{t("stock")}</h3>
-        <p className="muted">{t("stockHint")}</p>
+        <p className="muted">{t("fifoLayers")}</p>
         <label>
           {t("quantity")}
           <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
@@ -139,6 +159,30 @@ export function OpItemDetail() {
             {t("shrinkage")}
           </button>
         </div>
+      </div>
+      <div className="card" style={{ overflowX: "auto" }}>
+        <h3>{t("lots")}</h3>
+        <p className="muted">{t("fifoLayers")}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>{t("when")}</th>
+              <th>{t("qty")}</th>
+              <th>{t("fifoCogs")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lots.map((lot) => (
+              <tr key={lot.id}>
+                <td>{when(lot.received_at, locale)}</td>
+                <td>
+                  {lot.qty_remaining} / {lot.qty_original}
+                </td>
+                <td>{money(lot.unit_cost_cents)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <div className="card">
         <h3>{t("history")}</h3>
@@ -179,9 +223,13 @@ export function OpItemDetail() {
 }
 
 export function OpNewItem() {
-  const { t } = useI18n();
+  const { t, pick } = useI18n();
   const nav = useNavigate();
   const [error, setError] = useState("");
+  const [cats, setCats] = useState<Category[]>([]);
+  useEffect(() => {
+    api<Category[]>("/api/categories").then(setCats);
+  }, []);
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -199,6 +247,7 @@ export function OpNewItem() {
           reorder_point: Number(fd.get("reorder") || 0),
           unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
           unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
+          category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
         }),
       });
       nav(`/items/${created.id}`);
@@ -229,6 +278,17 @@ export function OpNewItem() {
       <label>
         {t("descriptionId")}
         <textarea name="description_id" />
+      </label>
+      <label>
+        {t("pickCategory")}
+        <select name="category_id">
+          <option value="">{t("none")}</option>
+          {cats.map((c) => (
+            <option key={c.id} value={c.id}>
+              {pick(c.name, c.name_id)}
+            </option>
+          ))}
+        </select>
       </label>
       <label>
         {t("openingQty")}
@@ -274,7 +334,7 @@ export function OpInvoiceDetail() {
       <div className="row no-print">
         <Link to="/invoices">{t("backInvoices")}</Link>
         <button className="btn ghost" onClick={() => window.print()}>
-          {t("print")}
+          {t("printThermal")}
         </button>
         {invoice.status === "issued" && (
           <button
@@ -299,7 +359,11 @@ export function OpInvoiceDetail() {
           </button>
         )}
       </div>
-      <InvoiceSheet invoice={invoice} />
+      <p className="muted no-print">{t("invoiceAlsoReceipt")}</p>
+      <ThermalReceipt invoice={invoice} />
+      <div className="no-print">
+        <InvoiceSheet invoice={invoice} />
+      </div>
     </div>
   );
 }

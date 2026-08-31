@@ -11,8 +11,9 @@ from app.models import (
     PurchaseOrderLine,
     ShopSettings,
     Shopper,
+    StockMovement,
 )
-from app.services.stock import apply_movement
+from app.services.stock import apply_movement, restore_outbound
 from app.timeutil import utcnow
 
 
@@ -34,9 +35,9 @@ def get_settings(db: Session) -> ShopSettings:
     if settings is None:
         settings = ShopSettings(
             id=1,
-            name="Warung Pojok",
-            address="Jl. Malioboro No. 12, Yogyakarta",
-            phone="+62 274-555-0142",
+            name="Toko Bangunan Makmur",
+            address="Jl. Magelang Km. 5, Yogyakarta",
+            phone="+62 274-555-2210",
             tax_rate_bps=0,
             currency_symbol="Rp",
             currency_code="IDR",
@@ -44,6 +45,12 @@ def get_settings(db: Session) -> ShopSettings:
             next_invoice_seq=1,
             po_prefix="PO",
             next_po_seq=1,
+            restock_prefix="RST",
+            next_restock_seq=1,
+            damage_prefix="DMG",
+            next_damage_seq=1,
+            return_prefix="RTN",
+            next_return_seq=1,
         )
         db.add(settings)
         db.flush()
@@ -139,9 +146,8 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
         )
     line = next((ln for ln in po.lines if ln.item_id == item_id), None)
     if line is None:
-        db.add(
+        po.lines.append(
             PurchaseOrderLine(
-                purchase_order_id=po.id,
                 item_id=item.id,
                 quantity=quantity,
                 sku=item.sku,
@@ -158,6 +164,7 @@ def upsert_line(db: Session, po: PurchaseOrder, item_id: int, quantity: int) -> 
         line.unit_price_cents = item.unit_price_cents
     po.updated_at = utcnow()
     db.flush()
+    db.expire(po, ["lines"])
     loaded = load_po(db, po.id)
     assert loaded is not None
     return loaded
@@ -185,11 +192,34 @@ def compute_tax_cents(subtotal: int, tax_bps: int) -> int:
     return int(round(subtotal * tax_bps / 10000))
 
 
-def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tuple[PurchaseOrder, Invoice]:
-    """Place a draft PO: stock out every line and raise an invoice in one transaction."""
+def create_fresh_draft(db: Session, shopper_id: int) -> PurchaseOrder:
+    """Always start a new draft (till sales must not mix with an open shop cart)."""
+    now = utcnow()
+    po = PurchaseOrder(
+        number=allocate_po_number(db),
+        shopper_id=shopper_id,
+        status="draft",
+        note="",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(po)
+    db.flush()
+    loaded = load_po(db, po.id)
+    assert loaded is not None
+    return loaded
+
+
+def place_order(
+    db: Session,
+    po: PurchaseOrder,
+    note: str | None = None,
+    salesperson_name: str = "",
+) -> tuple[PurchaseOrder, Invoice]:
+    """Place a draft PO: FIFO stock out every line and raise an invoice in one transaction."""
     if po.status != "draft":
         raise CheckoutError("Only a draft purchase order can be placed")
-    if not po.lines:
+    if not list(po.lines):
         raise CheckoutError("Add at least one item before placing the order")
 
     settings = get_settings(db)
@@ -228,7 +258,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
     if shortages:
         raise ShortageError(shortages)
 
-    movements = []
+    movements: list[StockMovement] = []
     subtotal = 0
     for line in po.lines:
         item = live_items[line.item_id]
@@ -243,12 +273,14 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
             quantity=line.quantity,
             reason=f"Sale {po.number}",
             purchase_order_id=po.id,
+            purpose="sale",
         )
         movements.append(mov)
         subtotal += line_total(line.quantity, line.unit_price_cents)
 
     tax_bps = settings.tax_rate_bps
     tax = compute_tax_cents(subtotal, tax_bps)
+    invoice_cogs = sum(mov.cogs_cents for mov in movements)
     invoice = Invoice(
         number=allocate_invoice_number(db),
         purchase_order_id=po.id,
@@ -258,16 +290,18 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
         tax_bps=tax_bps,
         tax_cents=tax,
         total_cents=subtotal + tax,
+        cogs_cents=invoice_cogs,
         shop_name=settings.name,
         shop_address=settings.address,
         shop_phone=settings.phone,
         currency_symbol="Rp",
+        salesperson_name=(salesperson_name or "").strip(),
         issued_at=now,
     )
     db.add(invoice)
     db.flush()
 
-    for line in po.lines:
+    for line, mov in zip(po.lines, movements, strict=True):
         db.add(
             InvoiceLine(
                 invoice_id=invoice.id,
@@ -277,6 +311,7 @@ def place_order(db: Session, po: PurchaseOrder, note: str | None = None) -> tupl
                 quantity=line.quantity,
                 unit_price_cents=line.unit_price_cents,
                 line_total_cents=line_total(line.quantity, line.unit_price_cents),
+                cogs_cents=mov.cogs_cents,
             )
         )
 
@@ -305,16 +340,32 @@ def cancel_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
         raise CheckoutError("Invoice is already void")
 
     now = utcnow()
-    for line in po.lines:
-        apply_movement(
-            db,
-            item_id=line.item_id,
-            kind="in",
-            quantity=line.quantity,
-            reason=f"Cancel {po.number}",
-            purchase_order_id=po.id,
-            invoice_id=invoice.id,
-        )
+    movements = list(
+        db.scalars(
+            select(StockMovement)
+            .options(selectinload(StockMovement.consumptions))
+            .where(
+                StockMovement.purchase_order_id == po.id,
+                StockMovement.kind == "out",
+            )
+            .order_by(StockMovement.id.asc())
+        ).all()
+    )
+    if movements:
+        for mov in movements:
+            restore_outbound(db, movement=mov, reason=f"Cancel {po.number}", purpose="cancel")
+    else:
+        for line in po.lines:
+            apply_movement(
+                db,
+                item_id=line.item_id,
+                kind="in",
+                quantity=line.quantity,
+                reason=f"Cancel {po.number}",
+                purchase_order_id=po.id,
+                invoice_id=invoice.id,
+                purpose="cancel",
+            )
     invoice.status = "void"
     invoice.voided_at = now
     po.status = "cancelled"

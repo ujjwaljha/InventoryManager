@@ -116,7 +116,7 @@ def place(body: PlaceIn, request: Request, db: Session = Depends(get_db)):
         po = chk.get_draft(db, sid)
         if po is None:
             raise HTTPException(status_code=400, detail="No draft purchase order to place")
-        po, _invoice = chk.place_order(db, po, note=body.note)
+        po, _invoice = chk.place_order(db, po, note=body.note, salesperson_name=body.salesperson_name)
         db.commit()
         po = chk.load_po(db, po.id)
         return po_out_with_settings(db, po)

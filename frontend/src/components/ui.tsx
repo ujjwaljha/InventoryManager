@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { type MsgKey, useI18n } from "../i18n";
-import { money, when } from "../money";
-import type { Invoice } from "../types";
+import { money, when, whenFull } from "../money";
+import type { Invoice, Item } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
   const { t, pick, locale } = useI18n();
@@ -31,6 +31,14 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
         <br />
         <span className="muted">{invoice.shopper_phone}</span>
         <br />
+        {invoice.salesperson_name ? (
+          <>
+            <span className="muted">
+              {t("soldBy")}: {invoice.salesperson_name}
+            </span>
+            <br />
+          </>
+        ) : null}
         <span className="muted">{invoice.purchase_order_number}</span>
       </p>
       <table>
@@ -71,6 +79,164 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
       </div>
     </article>
   );
+}
+
+export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
+  const { t, pick, locale } = useI18n();
+  return (
+    <article className="thermal-receipt" aria-label={t("receipt")}>
+      <header className="thermal-head">
+        <h1>{invoice.shop_name}</h1>
+        <div>{invoice.shop_address}</div>
+        {invoice.shop_phone ? <div>{invoice.shop_phone}</div> : null}
+      </header>
+      <hr className="thermal-dash" />
+      <div className="thermal-meta">
+        <div>
+          <b>{t("receipt")}</b> {invoice.number}
+        </div>
+        <div>
+          {t("dateTime")}: {whenFull(invoice.issued_at, locale)}
+        </div>
+        {invoice.salesperson_name ? (
+          <div>
+            {t("soldBy")}: {invoice.salesperson_name}
+          </div>
+        ) : null}
+        <div>
+          {t("customer")}: {invoice.shopper_name}
+        </div>
+        <div>
+          {t("phone")}: {invoice.shopper_phone}
+        </div>
+      </div>
+      <hr className="thermal-dash" />
+      {invoice.lines.map((ln) => (
+        <div key={ln.id} className="thermal-item">
+          <div>{pick(ln.name, ln.name_id)}</div>
+          <div className="thermal-line">
+            <span>
+              {ln.quantity} × {money(ln.unit_price_cents, invoice.currency_symbol)}
+            </span>
+            <span>{money(ln.line_total_cents, invoice.currency_symbol)}</span>
+          </div>
+        </div>
+      ))}
+      <hr className="thermal-dash" />
+      <div className="thermal-line muted">
+        <span>{t("subtotal")}</span>
+        <span>{money(invoice.subtotal_cents, invoice.currency_symbol)}</span>
+      </div>
+      {invoice.tax_cents > 0 && (
+        <div className="thermal-line muted">
+          <span>
+            {t("tax")} {(invoice.tax_bps / 100).toFixed(2)}%
+          </span>
+          <span>{money(invoice.tax_cents, invoice.currency_symbol)}</span>
+        </div>
+      )}
+      <div className="thermal-line thermal-total">
+        <span>{t("total")}</span>
+        <span>{money(invoice.total_cents, invoice.currency_symbol)}</span>
+      </div>
+      <hr className="thermal-dash" />
+      <p className="thermal-head">{t("thankYou")}</p>
+    </article>
+  );
+}
+
+export function ItemPicker({
+  onAdd,
+  costMode = false,
+}: {
+  onAdd: (item: Item, qty: number, extra?: number) => void;
+  costMode?: boolean;
+}) {
+  const { t, pick, locale } = useI18n();
+  const [items, setItems] = useState<Item[]>([]);
+  const [q, setQ] = useState("");
+  const [qty, setQty] = useState("1");
+  const [extra, setExtra] = useState("");
+  const [picked, setPicked] = useState<Item | null>(null);
+
+  useEffect(() => {
+    api<Item[]>("/api/items").then(setItems).catch(() => undefined);
+  }, []);
+
+  const shown = items
+    .filter((i) => {
+      if (!q.trim()) return picked ? i.id === picked.id : true;
+      const n = q.toLowerCase();
+      return (
+        i.sku.toLowerCase().includes(n) ||
+        i.name.toLowerCase().includes(n) ||
+        (i.name_id || "").toLowerCase().includes(n)
+      );
+    })
+    .slice(0, 8);
+
+  return (
+    <div className="form-grid">
+      <label>
+        {t("item")}
+        <input
+          className="search"
+          placeholder={t("searchSku")}
+          value={picked ? pick(picked.name, picked.name_id) : q}
+          onChange={(e) => {
+            setPicked(null);
+            setQ(e.target.value);
+          }}
+        />
+      </label>
+      {!picked && q && (
+        <div className="pick-list">
+          {shown.map((i) => (
+            <button
+              type="button"
+              className="chip"
+              key={i.id}
+              onClick={() => {
+                setPicked(i);
+                setQ("");
+                if (costMode) setExtra(String(Math.round((i.fifo_cogs_cents ?? i.unit_cost_cents) / 100)));
+              }}
+            >
+              {pick(i.name, i.name_id)} · {i.sku} · {i.quantity} {unitLabelSafe(i.unit, locale)}
+            </button>
+          ))}
+        </div>
+      )}
+      <label>
+        {t("quantity")}
+        <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
+      </label>
+      {costMode && (
+        <label>
+          {t("unitCost")}
+          <input value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="numeric" />
+        </label>
+      )}
+      <button
+        className="btn ghost"
+        type="button"
+        disabled={!picked || Number(qty) <= 0}
+        onClick={() => {
+          if (!picked) return;
+          onAdd(picked, Number(qty), extra ? Number(extra) : undefined);
+          setPicked(null);
+          setQ("");
+          setQty("1");
+        }}
+      >
+        {t("addLine")}
+      </button>
+    </div>
+  );
+}
+
+function unitLabelSafe(unit: string, locale: string) {
+  return locale === "id" && unit === "bag" ? "sak" : unit;
 }
 
 export function StatusTag({ status }: { status: string }) {
@@ -134,14 +300,12 @@ export function ShopNav({ count }: { count: number }) {
 export function OpNav() {
   const { t } = useI18n();
   return (
-    <nav className="bottom-nav">
-      <NavLink to="/" end>
-        {t("home")}
-      </NavLink>
+    <nav className="bottom-nav office-nav">
+      <NavLink to="/till">{t("till")}</NavLink>
       <NavLink to="/items">{t("items")}</NavLink>
-      <NavLink to="/orders">{t("orders")}</NavLink>
-      <NavLink to="/invoices">{t("invoices")}</NavLink>
-      <NavLink to="/settings">{t("more")}</NavLink>
+      <NavLink to="/receipts">{t("receipts")}</NavLink>
+      <NavLink to="/reports">{t("reports")}</NavLink>
+      <NavLink to="/more">{t("more")}</NavLink>
     </nav>
   );
 }
