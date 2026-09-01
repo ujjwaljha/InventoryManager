@@ -29,6 +29,7 @@ for pkg in (
     "webview",
     "pythonnet",
     "clr_loader",
+    "tzdata",
 ):
     try:
         extra_d, extra_b, extra_h = collect_all(pkg)
@@ -63,6 +64,8 @@ hiddenimports += [
     "clr",
     "clr_loader",
     "pythonnet",
+    "tzdata",
+    "zoneinfo",
     "app.main",
     "app.paths",
 ]

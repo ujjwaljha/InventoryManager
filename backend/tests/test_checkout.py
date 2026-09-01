@@ -19,6 +19,17 @@ def test_health(client: TestClient):
     assert res.json()["ok"] is True
 
 
+def test_shop_timezone_is_wib():
+    from datetime import datetime, timezone
+
+    from app.timeutil import SHOP_TZ
+
+    noon_utc = datetime(2026, 6, 1, 5, 0, tzinfo=timezone.utc)
+    local = noon_utc.astimezone(SHOP_TZ)
+    assert local.hour == 12
+    assert local.utcoffset().total_seconds() == 7 * 3600
+
+
 def test_stock_in_out_adjust(client: TestClient):
     items = client.get("/api/items").json()
     item = next(i for i in items if i["sku"] == "NAL-1")

@@ -1,7 +1,12 @@
 from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
 
-SHOP_TZ = ZoneInfo("Asia/Jakarta")
+try:
+    from zoneinfo import ZoneInfo
+
+    SHOP_TZ = ZoneInfo("Asia/Jakarta")
+except Exception:
+    # Windows frozen builds need the tzdata package; WIB has no DST.
+    SHOP_TZ = timezone(timedelta(hours=7), name="WIB")
 
 
 def utcnow() -> str:
