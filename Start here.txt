@@ -13,8 +13,10 @@ EASIEST: use the real app (no Python)
    • Windows: Toko Bangunan Makmur.exe  (inside the Toko Bangunan Makmur folder)
    • Mac: Toko Bangunan Makmur.app
      First time: right-click → Open → Open
-4. Leave the shop window open while you sell.
+4. The till opens in the app window (not Chrome or Edge). Leave it open while you sell.
    You never need to install Python.
+   Menu Toko: Kasir, Lantai toko, Simpan / Buka salinan.
+   Phones still open the shop in the phone browser on the same Wi‑Fi.
 
 If you only have the source folder (not the .exe / .app)
 ----------------------------------------------------------

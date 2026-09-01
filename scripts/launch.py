@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start Toko Bangunan Makmur. Works from source or as a packaged .exe / .app."""
+"""Start Toko Bangunan Makmur as a desktop app (Windows .exe / Mac .app, or from source)."""
 
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ LANG = {
         "starting": "Menyiapkan toko…",
         "running": "Toko sedang berjalan. Jangan tutup jendela ini.",
         "failed": "Tidak bisa menjalankan toko.",
-        "open_till": "Buka kasir",
-        "open_shop": "Buka toko (untuk pembeli)",
+        "open_till": "Kasir",
+        "open_shop": "Lantai toko",
         "phones": "HP di Wi‑Fi yang sama — buka alamat ini:",
-        "copy": "Salin alamat",
+        "copy": "Salin alamat HP",
         "copied": "Tersalin",
         "wifi": "Wi‑Fi: biarkan jendela ini terbuka. HP dan komputer lain di Wi‑Fi yang sama melihat stok yang sama.",
         "files": "Bluetooth / AirDrop / USB: simpan salinan, kirim berkasnya, lalu di komputer lain pilih Buka salinan.",
@@ -37,16 +37,18 @@ LANG = {
         "load_confirm": "Ganti data toko ini dengan berkas itu?",
         "no_internet": "Pertama kali perlu internet sebentar untuk memasang pustaka. Coba lagi saat online.",
         "already": "Toko sudah berjalan. Membuka kasir…",
+        "menu_shop": "Toko",
+        "need_webview": "Tidak bisa membuka jendela aplikasi. Di Windows, pasang Microsoft Edge WebView2.",
     },
     "en": {
         "title": "Toko Bangunan Makmur",
         "starting": "Preparing the shop…",
         "running": "The shop is running. Leave this window open.",
         "failed": "Could not start the shop.",
-        "open_till": "Open the till",
-        "open_shop": "Open the shop (for customers)",
+        "open_till": "Till",
+        "open_shop": "Shop floor",
         "phones": "Phones on the same Wi‑Fi — open this address:",
-        "copy": "Copy address",
+        "copy": "Copy phone address",
         "copied": "Copied",
         "wifi": "Wi‑Fi: leave this window open. Phones and other computers on the same Wi‑Fi see the same stock.",
         "files": "Bluetooth / AirDrop / USB: save a copy, send the file, then on the other computer choose Open a copy.",
@@ -58,6 +60,8 @@ LANG = {
         "load_confirm": "Replace this shop’s data with that file?",
         "no_internet": "The first start needs the internet briefly to install libraries. Try again when online.",
         "already": "The shop is already running. Opening the till…",
+        "menu_shop": "Shop",
+        "need_webview": "Could not open the app window. On Windows, install Microsoft Edge WebView2.",
     },
 }
 
@@ -76,7 +80,7 @@ def _backend_on_path() -> None:
     sys.path.insert(0, str(backend))
 
 
-def die(message: str) -> None:
+def alert(message: str) -> None:
     print(message, file=sys.stderr)
     try:
         import tkinter
@@ -88,6 +92,10 @@ def die(message: str) -> None:
         root.destroy()
     except Exception:
         pass
+
+
+def die(message: str) -> None:
+    alert(message)
     sys.exit(1)
 
 
@@ -175,15 +183,178 @@ def shop_page() -> str:
     return _shop_url(PORT)
 
 
+def till_url() -> str:
+    return f"http://127.0.0.1:{PORT}/"
+
+
+def floor_url() -> str:
+    return f"http://127.0.0.1:{PORT}/shop"
+
+
+def _dialog_path(result: object) -> Path | None:
+    if not result:
+        return None
+    if isinstance(result, (list, tuple)):
+        if not result:
+            return None
+        result = result[0]
+    return Path(str(result))
+
+
+def _copy_text(text: str) -> None:
+    try:
+        import tkinter as tk
+
+        root = tk.Tk()
+        root.withdraw()
+        root.clipboard_clear()
+        root.clipboard_append(text)
+        root.update()
+        root.destroy()
+    except Exception:
+        pass
+
+
+def _backup_to(dest: Path) -> bool:
+    from app.paths import sqlite_path
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/backup") as res:
+            dest.write_bytes(res.read())
+        return True
+    except OSError:
+        db = sqlite_path()
+        if db.is_file():
+            shutil.copy2(db, dest)
+            return True
+    return False
+
+
+def _restore_from(src: Path) -> bool:
+    raw = src.read_bytes()
+    if not raw.startswith(b"SQLite format 3"):
+        return False
+    try:
+        import httpx
+
+        res = httpx.post(
+            f"http://127.0.0.1:{PORT}/api/backup/restore",
+            files={"file": ("inventory.db", raw, "application/octet-stream")},
+            timeout=30,
+        )
+        res.raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
+def run_desktop(runtime: ShopRuntime | None) -> None:
+    """Native shop window: Edge WebView2 on Windows, WKWebView on Mac."""
+    import webview
+    from webview.menu import Menu, MenuAction, MenuSeparator
+
+    window = webview.create_window(
+        t("title"),
+        till_url(),
+        width=1280,
+        height=840,
+        min_size=(960, 640),
+        text_select=True,
+        zoomable=True,
+    )
+
+    def show_till() -> None:
+        win = webview.active_window()
+        if win:
+            win.load_url(till_url())
+
+    def show_shop() -> None:
+        win = webview.active_window()
+        if win:
+            win.load_url(floor_url())
+
+    def save_copy() -> None:
+        win = webview.active_window()
+        if not win:
+            return
+        picked = _dialog_path(
+            win.create_file_dialog(
+                webview.FileDialog.SAVE,
+                save_filename="inventory.db",
+                file_types=("Shop copy (*.db)", "All files (*.*)"),
+            )
+        )
+        if picked and not _backup_to(picked):
+            alert(t("failed"))
+
+    def load_copy() -> None:
+        win = webview.active_window()
+        if not win:
+            return
+        picked = _dialog_path(
+            win.create_file_dialog(
+                webview.FileDialog.OPEN,
+                file_types=("Shop copy (*.db)", "All files (*.*)"),
+            )
+        )
+        if not picked:
+            return
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+
+            root = tk.Tk()
+            root.withdraw()
+            ok = messagebox.askyesno(t("title"), t("load_confirm"))
+            root.destroy()
+        except Exception:
+            ok = True
+        if not ok:
+            return
+        if not _restore_from(picked):
+            alert(t("failed"))
+            return
+        win.load_url(till_url())
+
+    def copy_lan() -> None:
+        _copy_text(shop_page())
+
+    def stop() -> None:
+        win = webview.active_window()
+        if win:
+            win.destroy()
+
+    def on_closed() -> None:
+        if runtime is not None:
+            runtime.stop()
+
+    window.events.closed += on_closed
+    menu = [
+        Menu(
+            t("menu_shop"),
+            [
+                MenuAction(t("open_till"), show_till),
+                MenuAction(t("open_shop"), show_shop),
+                MenuSeparator(),
+                MenuAction(t("save"), save_copy),
+                MenuAction(t("load"), load_copy),
+                MenuSeparator(),
+                MenuAction(t("copy"), copy_lan),
+                MenuAction(t("stop"), stop),
+            ],
+        )
+    ]
+    gui = "edgechromium" if sys.platform == "win32" else None
+    webview.start(menu=menu, gui=gui)
+
+
 def run_gui(runtime: ShopRuntime) -> None:
+    """Fallback control panel if the native webview cannot start."""
     import tkinter as tk
     from tkinter import filedialog, messagebox
 
-    from app.paths import sqlite_path
-
     url = shop_page()
-    till = f"http://127.0.0.1:{PORT}/"
-    db = sqlite_path()
+    till = till_url()
     family = "Segoe UI" if sys.platform == "win32" else "Helvetica"
 
     root = tk.Tk()
@@ -191,7 +362,7 @@ def run_gui(runtime: ShopRuntime) -> None:
     root.geometry("560x480")
     root.minsize(480, 420)
 
-    status = tk.StringVar(value=t("running"))
+    status = tk.StringVar(value=t("need_webview"))
     url_var = tk.StringVar(value=url)
 
     pad = {"padx": 16, "pady": 6}
@@ -209,8 +380,7 @@ def run_gui(runtime: ShopRuntime) -> None:
     )
 
     def copy_url() -> None:
-        root.clipboard_clear()
-        root.clipboard_append(url_var.get())
+        _copy_text(url_var.get())
         status.set(t("copied"))
 
     tk.Button(root, text=t("copy"), command=copy_url).pack(anchor="w", padx=16, pady=4)
@@ -226,16 +396,10 @@ def run_gui(runtime: ShopRuntime) -> None:
         )
         if not dest:
             return
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/backup") as res:
-                Path(dest).write_bytes(res.read())
+        if _backup_to(Path(dest)):
             status.set(t("copied"))
-        except OSError:
-            if db.is_file():
-                shutil.copy2(db, dest)
-                status.set(t("copied"))
-            else:
-                messagebox.showerror(t("title"), t("failed"))
+        else:
+            messagebox.showerror(t("title"), t("failed"))
 
     def load_copy() -> None:
         src = filedialog.askopenfilename(
@@ -246,23 +410,11 @@ def run_gui(runtime: ShopRuntime) -> None:
             return
         if not messagebox.askyesno(t("title"), t("load_confirm")):
             return
-        raw = Path(src).read_bytes()
-        if not raw.startswith(b"SQLite format 3"):
+        if not _restore_from(Path(src)):
             messagebox.showerror(t("title"), t("failed"))
             return
-        try:
-            import httpx
-
-            res = httpx.post(
-                f"http://127.0.0.1:{PORT}/api/backup/restore",
-                files={"file": ("inventory.db", raw, "application/octet-stream")},
-                timeout=30,
-            )
-            res.raise_for_status()
-            status.set(t("running"))
-            webbrowser.open(till)
-        except Exception:
-            messagebox.showerror(t("title"), t("failed"))
+        status.set(t("running"))
+        webbrowser.open(till)
 
     files = tk.Frame(root)
     files.pack(fill="x", padx=16, pady=10)
@@ -280,6 +432,18 @@ def run_gui(runtime: ShopRuntime) -> None:
     runtime.stop()
 
 
+def open_shop_ui(runtime: ShopRuntime | None) -> None:
+    try:
+        import webview  # noqa: F401
+    except Exception:
+        if runtime is None:
+            webbrowser.open(till_url())
+            return
+        run_gui(runtime)
+        return
+    run_desktop(runtime)
+
+
 def main() -> None:
     freeze_support()
     _backend_on_path()
@@ -294,7 +458,7 @@ def main() -> None:
 
     if health_ok():
         print(t("already"), flush=True)
-        webbrowser.open(f"http://127.0.0.1:{PORT}/")
+        open_shop_ui(None)
         return
 
     runtime = ShopRuntime()
@@ -308,14 +472,7 @@ def main() -> None:
             if runtime.thread:
                 runtime.thread.join()
             return
-        try:
-            run_gui(runtime)
-        except Exception:
-            webbrowser.open(f"http://127.0.0.1:{PORT}/")
-            print(t("running"))
-            print(shop_page())
-            if runtime.thread:
-                runtime.thread.join()
+        open_shop_ui(runtime)
     finally:
         runtime.stop()
 

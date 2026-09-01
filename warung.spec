@@ -26,6 +26,7 @@ for pkg in (
     "websockets",
     "httpx",
     "multipart",
+    "webview",
 ):
     try:
         extra_d, extra_b, extra_h = collect_all(pkg)
@@ -52,6 +53,12 @@ hiddenimports += [
     "tkinter",
     "tkinter.filedialog",
     "tkinter.messagebox",
+    "webview",
+    "webview.menu",
+    "webview.platforms.edgechromium",
+    "webview.platforms.winforms",
+    "webview.platforms.cocoa",
+    "clr",
     "app.main",
     "app.paths",
 ]
@@ -105,7 +112,7 @@ if sys.platform == "darwin":
         coll,
         name=f"{APP_NAME}.app",
         icon=None,
-        bundle_identifier="id.warungpojok.shop",
+        bundle_identifier="id.tokobangunanmakmur.shop",
         info_plist={
             "CFBundleName": APP_NAME,
             "CFBundleDisplayName": APP_NAME,
