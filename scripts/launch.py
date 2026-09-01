@@ -73,6 +73,14 @@ def t(key: str) -> str:
     return LANG.get(locale, LANG["id"]).get(key, LANG["en"][key])
 
 
+def _attach_stdio() -> None:
+    """Windowed .exe/.app have no console; uvicorn calls stdout.isatty()."""
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
+
+
 def _backend_on_path() -> None:
     if getattr(sys, "frozen", False):
         return
@@ -184,6 +192,17 @@ class ShopRuntime:
             port=PORT,
             log_level="warning",
             access_log=False,
+            log_config={
+                "version": 1,
+                "disable_existing_loggers": False,
+                "formatters": {"default": {"format": "%(message)s"}},
+                "handlers": {"default": {"class": "logging.NullHandler"}},
+                "loggers": {
+                    "uvicorn": {"handlers": ["default"], "level": "WARNING"},
+                    "uvicorn.error": {"handlers": ["default"], "level": "WARNING"},
+                    "uvicorn.access": {"handlers": ["default"], "level": "WARNING"},
+                },
+            },
         )
         self.server = uvicorn.Server(config)
         self.thread = threading.Thread(target=self.server.run, daemon=True)
@@ -470,6 +489,7 @@ def open_shop_ui(runtime: ShopRuntime | None) -> None:
 
 def main() -> None:
     freeze_support()
+    _attach_stdio()
     _unblock_windows_dlls()
     _backend_on_path()
     from app.paths import is_frozen, sqlite_path, user_data_dir
