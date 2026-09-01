@@ -17,6 +17,8 @@ EASIEST: use the real app (no Python)
    You never need to install Python.
    Menu Toko: Kasir, Lantai toko, Simpan / Buka salinan.
    Phones still open the shop in the phone browser on the same Wi‑Fi.
+   Windows: if the first open fails, right-click the zip → Properties → Unblock,
+   then unzip again. The app also clears that block on launch.
 
 If you only have the source folder (not the .exe / .app)
 ----------------------------------------------------------

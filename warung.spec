@@ -27,6 +27,8 @@ for pkg in (
     "httpx",
     "multipart",
     "webview",
+    "pythonnet",
+    "clr_loader",
 ):
     try:
         extra_d, extra_b, extra_h = collect_all(pkg)
@@ -59,6 +61,8 @@ hiddenimports += [
     "webview.platforms.winforms",
     "webview.platforms.cocoa",
     "clr",
+    "clr_loader",
+    "pythonnet",
     "app.main",
     "app.paths",
 ]
@@ -71,7 +75,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(ROOT / "scripts" / "pyi_rth_win_unblock.py")],
     excludes=["pytest", "pip", "setuptools"],
     noarchive=False,
     optimize=0,

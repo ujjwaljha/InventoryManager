@@ -80,6 +80,23 @@ def _backend_on_path() -> None:
     sys.path.insert(0, str(backend))
 
 
+def _unblock_windows_dlls() -> None:
+    """GitHub zips mark DLLs as blocked; pythonnet cannot load those files."""
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+        return
+    roots = [Path(getattr(sys, "_MEIPASS", ".")), Path(sys.executable).resolve().parent]
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.suffix.lower() not in {".dll", ".exe", ".pyd"}:
+                continue
+            try:
+                os.remove(f"{path}:Zone.Identifier")
+            except OSError:
+                pass
+
+
 def alert(message: str) -> None:
     print(message, file=sys.stderr)
     try:
@@ -433,6 +450,7 @@ def run_gui(runtime: ShopRuntime) -> None:
 
 
 def open_shop_ui(runtime: ShopRuntime | None) -> None:
+    _unblock_windows_dlls()
     try:
         import webview  # noqa: F401
     except Exception:
@@ -441,11 +459,18 @@ def open_shop_ui(runtime: ShopRuntime | None) -> None:
             return
         run_gui(runtime)
         return
-    run_desktop(runtime)
+    try:
+        run_desktop(runtime)
+    except Exception:
+        if runtime is None:
+            webbrowser.open(till_url())
+            return
+        run_gui(runtime)
 
 
 def main() -> None:
     freeze_support()
+    _unblock_windows_dlls()
     _backend_on_path()
     from app.paths import is_frozen, sqlite_path, user_data_dir
 
