@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, PinSettings, SharePanel, ThermalReceipt } from "../components/ui";
+import { InvoiceSheet, PinSettings, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, unitLabel, when } from "../money";
@@ -395,6 +395,7 @@ export function OpInvoiceDetail() {
         <button className="btn ghost" onClick={() => window.print()}>
           {t("printThermal")}
         </button>
+        <ShareReceiptButton invoice={invoice} />
         {invoice.status === "issued" && (
           <button
             className="btn"

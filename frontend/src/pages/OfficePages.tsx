@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { ItemPicker, StatusTag, ThermalReceipt } from "../components/ui";
+import { ItemPicker, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
 import type { CreditReport, DamageNote, Invoice, Item, SupplierReturn } from "../types";
@@ -81,6 +81,7 @@ export function ReceiptDetail() {
         <button className="btn" onClick={() => window.print()}>
           {t("printThermal")}
         </button>
+        <ShareReceiptButton invoice={invoice} />
       </div>
       <p className="muted no-print">{t("thermalHint")}</p>
       {invoice.status === "issued" && (

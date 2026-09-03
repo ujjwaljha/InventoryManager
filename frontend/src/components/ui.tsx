@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel, when, whenFull } from "../money";
+import { receiptPlainText, shareReceipt } from "../receiptShare";
 import type { Invoice, Item, Settings, Shopper } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
@@ -155,6 +156,32 @@ export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
       <hr className="thermal-dash" />
       <p className="thermal-head">{t("thankYou")}</p>
     </article>
+  );
+}
+
+export function ShareReceiptButton({ invoice }: { invoice: Invoice }) {
+  const { t, pick, locale } = useI18n();
+  const [note, setNote] = useState("");
+
+  async function onShare() {
+    setNote("");
+    const text = receiptPlainText(invoice, t, pick, locale);
+    const title = `${invoice.shop_name} · ${invoice.number}`;
+    try {
+      const outcome = await shareReceipt(title, text, `${invoice.number}.txt`);
+      if (outcome === "copied") {
+        setNote(t("receiptCopied"));
+        window.setTimeout(() => setNote(""), 2500);
+      }
+    } catch {
+      setNote(t("shareReceiptFailed"));
+    }
+  }
+
+  return (
+    <button className="btn ghost" type="button" onClick={onShare}>
+      {note || t("shareReceipt")}
+    </button>
   );
 }
 
