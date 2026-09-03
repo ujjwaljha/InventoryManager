@@ -9,7 +9,7 @@ import type { Invoice, Shopper } from "../types";
 type CustomerDetail = Shopper & { invoices?: Invoice[] };
 
 export function CustomersPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Shopper[]>([]);
   const [error, setError] = useState("");
@@ -52,7 +52,7 @@ export function CustomersPage() {
             <div className="muted">{c.phone}</div>
             {c.last_issued_at ? (
               <div className="muted">
-                {t("lastPurchase")}: {c.last_issued_at.replace("T", " ").slice(0, 16)}
+                {t("lastPurchase")}: {when(c.last_issued_at, locale)}
               </div>
             ) : null}
           </div>
