@@ -10,6 +10,7 @@ export function ShopInvoices() {
   const { t, locale } = useI18n();
   const [rows, setRows] = useState<Invoice[]>([]);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [q, setQ] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
     Promise.all([api<Invoice[]>("/api/shop/invoices"), api<PurchaseOrder[]>("/api/shop/orders")])
@@ -19,6 +20,24 @@ export function ShopInvoices() {
       })
       .catch((e) => setError(e.message));
   }, []);
+  const needle = q.trim().toLowerCase();
+  const digits = needle.replace(/\D/g, "");
+  function matchesInvoice(inv: Invoice) {
+    if (!needle) return true;
+    const blob = [inv.number, inv.shopper_name, inv.shopper_phone, inv.salesperson_name, ...(inv.lines || []).flatMap((ln) => [ln.sku, ln.name, ln.name_id])]
+      .join(" ")
+      .toLowerCase();
+    return blob.includes(needle) || (digits.length >= 4 && (inv.shopper_phone || "").includes(digits));
+  }
+  function matchesOrder(po: PurchaseOrder) {
+    if (!needle) return true;
+    const blob = [po.number, po.shopper_name, po.shopper_phone, po.note, po.invoice?.number, po.invoice?.salesperson_name, ...(po.lines || []).flatMap((ln) => [ln.sku, ln.name, ln.name_id])]
+      .join(" ")
+      .toLowerCase();
+    return blob.includes(needle) || (digits.length >= 4 && (po.shopper_phone || "").includes(digits));
+  }
+  const shownInv = rows.filter(matchesInvoice);
+  const shownPo = orders.filter(matchesOrder);
   if (error) return <div className="banner">{error}</div>;
   if (rows.length === 0 && orders.length === 0) {
     return (
@@ -31,9 +50,10 @@ export function ShopInvoices() {
   return (
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("yourInvoices")}</h2>
-      {rows.length === 0 && <p className="muted">{t("noInvoices")}</p>}
-      {rows.map((inv) => (
-        <Link className="card row" style={{ justifyContent: "space-between" }} key={inv.id} to={`/shop/invoices/${inv.id}`}>
+      <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchOrders")} />
+      {shownInv.length === 0 && <p className="muted">{t("noInvoices")}</p>}
+      {shownInv.map((inv) => (
+        <Link className="card row" key={inv.id} to={`/shop/invoices/${inv.id}`}>
           <div>
             <b>{inv.number}</b>
             <div className="muted">{when(inv.issued_at, locale)}</div>
@@ -45,11 +65,11 @@ export function ShopInvoices() {
         </Link>
       ))}
       <h3 style={{ margin: 0 }}>{t("yourOrders")}</h3>
-      {orders.length === 0 && <p className="muted">{t("noOrders")}</p>}
-      {orders.map((po) => {
+      {shownPo.length === 0 && <p className="muted">{t("noOrders")}</p>}
+      {shownPo.map((po) => {
         const href = po.invoice ? `/shop/invoices/${po.invoice.id}` : "/shop/invoices";
         return (
-          <Link className="card row" style={{ justifyContent: "space-between" }} key={po.id} to={href}>
+          <Link className="card row" key={po.id} to={href}>
             <div>
               <b>{po.number}</b> <StatusTag status={po.status} />
               <div className="muted">{when(po.placed_at || po.created_at, locale)}</div>

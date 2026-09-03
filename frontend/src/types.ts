@@ -77,6 +77,13 @@ export type InvoiceLine = {
   cogs_cents?: number;
 };
 
+export type PageResult<T> = {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type Invoice = {
   id: number;
   number: string;

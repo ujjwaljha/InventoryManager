@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../api";
-import { SharePanel, StatusTag } from "../components/ui";
+import { SharePanel } from "../components/ui";
+import { FinderBar, InvoiceResultCard, OrderResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
 import { type MsgKey, useI18n } from "../i18n";
-import { formatQty, money, unitLabel, when } from "../money";
+import { formatQty, money, unitLabel } from "../money";
 import type { Dashboard, Invoice, Item, ItemDeleteResult, Movement, PurchaseOrder } from "../types";
 
 export function OpDashboard() {
@@ -238,53 +239,111 @@ export function OpItems() {
 }
 
 export function OpOrders() {
-  const { t, locale } = useI18n();
-  const [rows, setRows] = useState<PurchaseOrder[]>([]);
+  const { t } = useI18n();
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [page, setPage] = useState<PageResult<PurchaseOrder> | null>(null);
+  const [error, setError] = useState("");
+  const needle = useDebounced(q);
+
   useEffect(() => {
-    api<PurchaseOrder[]>("/api/orders").then(setRows);
-  }, []);
+    setOffset(0);
+  }, [needle, status, dateFrom, dateTo]);
+
+  useEffect(() => {
+    const qs = buildQuery({
+      q: needle.trim(),
+      status,
+      date_from: dateFrom,
+      date_to: dateTo,
+      limit: PAGE_SIZE,
+      offset,
+    });
+    api<PageResult<PurchaseOrder>>(`/api/orders${qs}`)
+      .then(setPage)
+      .catch((e) => setError(e instanceof Error ? e.message : t("couldNotAdd")));
+  }, [needle, status, dateFrom, dateTo, offset, t]);
+
   return (
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("purchaseOrders")}</h2>
-      {rows.map((po) => (
-        <div className="card row" key={po.id} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{po.number}</b> <StatusTag status={po.status} />
-            <div className="muted">
-              {po.shopper_name} · {po.shopper_phone}
-            </div>
-            <div className="muted">{when(po.placed_at || po.created_at, locale)}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div className="price">{money(po.total_cents, po.currency_symbol)}</div>
-            {po.invoice && <Link to={`/invoices/${po.invoice.id}`}>{po.invoice.number}</Link>}
-          </div>
-        </div>
+      <FinderBar
+        q={q}
+        onQ={setQ}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFrom={setDateFrom}
+        onDateTo={setDateTo}
+        statuses={["draft", "placed", "cancelled"]}
+        status={status}
+        onStatus={setStatus}
+        hint={t("searchOrdersHint")}
+        onSubmit={() => setOffset(0)}
+      />
+      {error && <div className="banner">{error}</div>}
+      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
+      {page?.items.map((po) => (
+        <OrderResultCard key={po.id} order={po} />
       ))}
+      {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
 }
 
 export function OpInvoices() {
-  const { t, locale } = useI18n();
-  const [rows, setRows] = useState<Invoice[]>([]);
+  const { t } = useI18n();
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [page, setPage] = useState<PageResult<Invoice> | null>(null);
+  const [error, setError] = useState("");
+  const needle = useDebounced(q);
+
   useEffect(() => {
-    api<Invoice[]>("/api/invoices").then(setRows);
-  }, []);
+    setOffset(0);
+  }, [needle, status, dateFrom, dateTo]);
+
+  useEffect(() => {
+    const qs = buildQuery({
+      q: needle.trim(),
+      status,
+      date_from: dateFrom,
+      date_to: dateTo,
+      limit: PAGE_SIZE,
+      offset,
+    });
+    api<PageResult<Invoice>>(`/api/invoices${qs}`)
+      .then(setPage)
+      .catch((e) => setError(e instanceof Error ? e.message : t("couldNotAdd")));
+  }, [needle, status, dateFrom, dateTo, offset, t]);
+
   return (
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("invoices")}</h2>
-      {rows.map((inv) => (
-        <Link className="card row" key={inv.id} to={`/invoices/${inv.id}`} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{inv.number}</b> <StatusTag status={inv.status} />
-            <div className="muted">
-              {inv.shopper_name} · {when(inv.issued_at, locale)}
-            </div>
-          </div>
-          <div className="price">{money(inv.total_cents, inv.currency_symbol)}</div>
-        </Link>
+      <FinderBar
+        q={q}
+        onQ={setQ}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFrom={setDateFrom}
+        onDateTo={setDateTo}
+        statuses={["issued", "paid", "void"]}
+        status={status}
+        onStatus={setStatus}
+        hint={t("lookUpHint")}
+        onSubmit={() => setOffset(0)}
+      />
+      {error && <div className="banner">{error}</div>}
+      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
+      {page?.items.map((inv) => (
+        <InvoiceResultCard key={inv.id} invoice={inv} />
       ))}
+      {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
 }
