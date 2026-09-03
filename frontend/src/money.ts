@@ -61,6 +61,10 @@ export function qtyStep(unit: string): number {
   return 1;
 }
 
+export function nudgeQty(current: number, unit: string, dir: 1 | -1): number {
+  return Math.round((Number(current) + dir * qtyStep(unit)) * 1000) / 1000;
+}
+
 export function formatQty(n: number): string {
   const v = Number(n);
   if (!Number.isFinite(v)) return "0";

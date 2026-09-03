@@ -1,7 +1,8 @@
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { LanguageSwitch, useI18n } from "./i18n";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { OpNav, PinUnlock, ShopNav } from "./components/ui";
+import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "./components/CartPane";
 import { OpDashboard, OpInvoices, OpItems, OpOrders } from "./pages/OpPages";
 import { OpInvoiceDetail, OpItemDetail, OpNewItem, OpSettings } from "./pages/OpDetailPages";
 import { CreditPage, DamagePage, MorePage, ReceiptDetail, ReceiptsPage, ReturnsPage } from "./pages/OfficePages";
@@ -11,6 +12,7 @@ import { TillPage } from "./pages/TillPage";
 import { ShopInvoiceDetail, ShopInvoices } from "./pages/ShopInvoicePages";
 import { ShopCart, ShopHome } from "./pages/ShopPages";
 import type { PurchaseOrder, Settings, Shopper } from "./types";
+import { formatQty, nudgeQty } from "./money";
 import { useEffect, useRef, useState } from "react";
 
 function Brand({ to, kicker, name }: { to: string; kicker: string; name: string }) {
@@ -43,17 +45,27 @@ function useShopName() {
 }
 
 function ShopShell() {
-  const { t } = useI18n();
+  const { t, pick } = useI18n();
   const name = useShopName();
   const [shopper, setShopper] = useState<Shopper | null>(null);
+  const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [count, setCount] = useState(0);
   const [countBump, setCountBump] = useState(0);
   const [switching, setSwitching] = useState(false);
+  const [cartOpen, setCartOpen] = useState(readCartPaneOpen);
+  const [cartError, setCartError] = useState("");
+  const [cartRev, setCartRev] = useState(0);
   const prevCount = useRef(0);
+
+  function setPaneOpen(open: boolean) {
+    setCartOpen(open);
+    writeCartPaneOpen(open);
+  }
 
   async function logoutShop(keepCart: boolean) {
     await api(`/api/shop/logout${keepCart ? "?keep_cart=true" : ""}`, { method: "POST" });
     setShopper(null);
+    setPo(null);
     prevCount.current = 0;
     setCount(0);
     setSwitching(false);
@@ -61,13 +73,48 @@ function ShopShell() {
 
   async function refreshCart() {
     try {
-      const po = await api<PurchaseOrder>("/api/shop/po");
-      const next = po.lines.reduce((n, l) => n + l.quantity, 0);
-      if (next > prevCount.current) setCountBump((n) => n + 1);
+      const draft = await api<PurchaseOrder>("/api/shop/po");
+      setPo(draft);
+      const next = draft.lines.reduce((n, l) => n + l.quantity, 0);
+      if (next > prevCount.current) {
+        setCountBump((n) => n + 1);
+        setPaneOpen(true);
+      }
       prevCount.current = next;
       setCount(next);
     } catch {
+      setPo(null);
       setCount(0);
+    }
+  }
+
+  async function changeLine(itemId: number, quantity: number) {
+    setCartError("");
+    try {
+      if (quantity <= 0) {
+        const next = await api<PurchaseOrder>(`/api/shop/po/lines/${itemId}`, { method: "DELETE" });
+        setPo(next);
+        const nextCount = next.lines.reduce((n, l) => n + l.quantity, 0);
+        prevCount.current = nextCount;
+        setCount(nextCount);
+      } else {
+        const next = await api<PurchaseOrder>("/api/shop/po/lines", {
+          method: "POST",
+          body: JSON.stringify({ item_id: itemId, quantity }),
+        });
+        setPo(next);
+        const nextCount = next.lines.reduce((n, l) => n + l.quantity, 0);
+        prevCount.current = nextCount;
+        setCount(nextCount);
+      }
+      setCartRev((n) => n + 1);
+    } catch (e) {
+      if (e instanceof ApiError && e.shortages.length) {
+        const s = e.shortages[0];
+        setCartError(t("onlyLeft", { name: pick(s.name, s.name_id), available: formatQty(s.available) }));
+      } else {
+        setCartError(e instanceof Error ? e.message : t("updateFailed"));
+      }
     }
   }
 
@@ -79,7 +126,7 @@ function ShopShell() {
   }, []);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell shop-with-cart${cartOpen ? "" : " collapsed"}`}>
       <header className="topbar">
         <Brand to="/shop" kicker={t("shopFloor")} name={name} />
         <div className="row desktop-only">
@@ -129,15 +176,51 @@ function ShopShell() {
       <Routes>
         <Route
           path="/shop"
-          element={<ShopHome shopper={shopper} onIdentified={setShopper} onCartChange={refreshCart} />}
+          element={
+            <ShopHome
+              shopper={shopper}
+              onIdentified={setShopper}
+              onCartChange={refreshCart}
+              cartLines={po?.lines}
+            />
+          }
         />
         <Route
           path="/shop/order"
-          element={<ShopCart shopper={shopper} onIdentified={setShopper} onCartChange={refreshCart} />}
+          element={<ShopCart shopper={shopper} onIdentified={setShopper} onCartChange={refreshCart} cartRev={cartRev} />}
         />
         <Route path="/shop/invoices" element={<ShopInvoices />} />
         <Route path="/shop/invoices/:id" element={<ShopInvoiceDetail />} />
       </Routes>
+      <CartPane
+          lines={(po?.lines || []).map((ln) => ({
+            key: ln.id,
+            name: pick(ln.name, ln.name_id),
+            sku: ln.sku,
+            quantity: ln.quantity,
+            unit: ln.unit,
+            lineTotalCents: ln.line_total_cents,
+            onInc: shopper
+              ? () => changeLine(ln.item_id, nudgeQty(ln.quantity, ln.unit || "ea", 1))
+              : undefined,
+            onDec: shopper
+              ? () => changeLine(ln.item_id, nudgeQty(ln.quantity, ln.unit || "ea", -1))
+              : undefined,
+            onRemove: shopper ? () => changeLine(ln.item_id, 0) : undefined,
+          }))}
+          totalCents={po?.total_cents || 0}
+          count={po?.lines.length || 0}
+          collapsed={!cartOpen}
+          onToggle={() => setPaneOpen(!cartOpen)}
+          error={cartError}
+          footer={
+            (po?.lines.length || 0) > 0 ? (
+              <Link className="btn terra block" to="/shop/order" style={{ marginTop: 10, display: "block", textAlign: "center" }}>
+                {t("order")}
+              </Link>
+            ) : null
+          }
+        />
       <ShopNav count={count} />
     </div>
   );

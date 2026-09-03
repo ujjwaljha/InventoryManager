@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
+import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/CartPane";
 import { ItemPicker } from "../components/ui";
 import { useI18n } from "../i18n";
-import { formatQty, money, qtyMoney } from "../money";
+import { formatQty, money, nudgeQty, qtyMoney } from "../money";
 import type { Item, Shortage } from "../types";
 
 type Line = { item: Item; quantity: number };
@@ -25,6 +26,12 @@ export function TillPage() {
   const [busy, setBusy] = useState(false);
   const [paidNow, setPaidNow] = useState(true);
   const [shortages, setShortages] = useState<Shortage[]>([]);
+  const [cartOpen, setCartOpen] = useState(readCartPaneOpen);
+
+  function setPaneOpen(open: boolean) {
+    setCartOpen(open);
+    writeCartPaneOpen(open);
+  }
 
   function resetSale() {
     setLines([]);
@@ -69,10 +76,18 @@ export function TillPage() {
 
   function add(item: Item, quantity: number) {
     setError("");
+    setPaneOpen(true);
     setLines((cur) => {
       const found = cur.find((ln) => ln.item.id === item.id);
       if (!found) return [...cur, { item, quantity }];
       return cur.map((ln) => (ln.item.id === item.id ? { ...ln, quantity: ln.quantity + quantity } : ln));
+    });
+  }
+
+  function setLineQty(itemId: number, quantity: number) {
+    setLines((cur) => {
+      if (quantity <= 0) return cur.filter((ln) => ln.item.id !== itemId);
+      return cur.map((ln) => (ln.item.id === itemId ? { ...ln, quantity } : ln));
     });
   }
 
@@ -136,7 +151,8 @@ export function TillPage() {
   }
 
   return (
-    <div className="grid">
+    <div className={`till-with-cart${cartOpen ? "" : " collapsed"}`}>
+      <div className="grid">
       <div>
         <div className="sku">{t("till")}</div>
         <h2 style={{ margin: "4px 0 0" }}>{t("completeSale")}</h2>
@@ -174,45 +190,33 @@ export function TillPage() {
         </label>
         <p className="muted">{t("tillKeepsCart")}</p>
         <ItemPicker onAdd={(item, qty) => add(item, qty)} />
-        {lines.length === 0 ? (
-          <p className="muted">{t("cartEmpty")}</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>{t("item")}</th>
-                <th>{t("qty")}</th>
-                <th>{t("unitPrice")}</th>
-                <th>{t("lineTotal")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((ln) => (
-                <tr key={ln.item.id}>
-                  <td>{pick(ln.item.name, ln.item.name_id)}</td>
-                  <td>{formatQty(ln.quantity)}</td>
-                  <td>{money(ln.item.unit_price_cents)}</td>
-                  <td>{money(qtyMoney(ln.quantity, ln.item.unit_price_cents))}</td>
-                  <td>
-                    <button type="button" className="btn ghost" onClick={() => setLines((c) => c.filter((x) => x.item.id !== ln.item.id))}>
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
         <div className="price">{t("total")} {money(total)}</div>
         <label className="row" style={{ gap: 8 }}>
-          <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} />
+          <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.currentTarget.checked)} />
           {paidNow ? t("paidNow") : t("creditSale")}
         </label>
         <button className="btn" type="submit" disabled={busy || !lines.length}>
           {t("completeSale")}
         </button>
       </form>
+      </div>
+      <CartPane
+        lines={lines.map((ln) => ({
+          key: ln.item.id,
+          name: pick(ln.item.name, ln.item.name_id),
+          sku: ln.item.sku,
+          quantity: ln.quantity,
+          unit: ln.item.unit,
+          lineTotalCents: qtyMoney(ln.quantity, ln.item.unit_price_cents),
+          onInc: () => setLineQty(ln.item.id, nudgeQty(ln.quantity, ln.item.unit, 1)),
+          onDec: () => setLineQty(ln.item.id, nudgeQty(ln.quantity, ln.item.unit, -1)),
+          onRemove: () => setLineQty(ln.item.id, 0),
+        }))}
+        totalCents={total}
+        count={lines.length}
+        collapsed={!cartOpen}
+        onToggle={() => setPaneOpen(!cartOpen)}
+      />
     </div>
   );
 }
