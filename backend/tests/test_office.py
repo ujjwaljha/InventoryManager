@@ -72,6 +72,17 @@ def test_fifo_restock_then_sale_uses_oldest_cost(client: TestClient):
     assert leftover["fifo_cogs_cents"] == later_cost
 
 
+def test_item_sku_qr(client: TestClient):
+    nails = _item(client, "NAL-1")
+    res = client.get(f"/api/items/{nails['id']}/sku-qr")
+    assert res.status_code == 200
+    body = res.content.lower()
+    assert b"<svg" in body
+    assert res.headers["content-type"].startswith("image/svg")
+    missing = client.get("/api/items/999999/sku-qr")
+    assert missing.status_code == 404
+
+
 def test_receipt_search_by_number_and_phone(client: TestClient):
     nails = _item(client, "NAL-1")
     sale = client.post(

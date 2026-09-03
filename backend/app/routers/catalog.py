@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import delete as sql_delete, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
@@ -276,6 +277,24 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Item not found")
     reserved = chk.draft_reserved(db, [item.id]).get(item.id, 0)
     return item_out(item, reserved)
+
+
+@router.get("/items/{item_id}/sku-qr")
+def item_sku_qr(item_id: int, db: Session = Depends(get_db)):
+    import io
+
+    import segno
+
+    item = db.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    buf = io.BytesIO()
+    segno.make(item.sku, error="m").save(buf, kind="svg", scale=6, border=2)
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @router.patch("/items/{item_id}")

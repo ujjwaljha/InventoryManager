@@ -103,22 +103,30 @@ export function OpItemDetail() {
       {error && <div className="banner">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
       <div className="card">
-        <div className="sku">{item.sku}</div>
-        <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
-        {item.archived ? <div className="stock low">{t("itemHidden")}</div> : null}
-        <p className="price" style={{ margin: 0 }}>
-          {t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })}
-        </p>
-        {(item.reserved || 0) > 0 ? (
-          <p className="muted">
-            {t("sellable")} {formatQty(item.available ?? item.quantity)} · {t("heldInCart", { qty: formatQty(item.reserved || 0) })}
-          </p>
-        ) : null}
-        <p className="muted">
-          {t("fifoCogs")}: {money(item.fifo_cogs_cents || item.unit_cost_cents)} · {t("stockValue")}{" "}
-          {money(item.inventory_value_cents || 0)}
-        </p>
-        {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div className="sku">{item.sku}</div>
+            <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
+            {item.archived ? <div className="stock low">{t("itemHidden")}</div> : null}
+            <p className="price" style={{ margin: 0 }}>
+              {t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })}
+            </p>
+            {(item.reserved || 0) > 0 ? (
+              <p className="muted">
+                {t("sellable")} {formatQty(item.available ?? item.quantity)} · {t("heldInCart", { qty: formatQty(item.reserved || 0) })}
+              </p>
+            ) : null}
+            <p className="muted">
+              {t("fifoCogs")}: {money(item.fifo_cogs_cents || item.unit_cost_cents)} · {t("stockValue")}{" "}
+              {money(item.inventory_value_cents || 0)}
+            </p>
+            {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
+          </div>
+          <figure className="sku-qr-wrap">
+            <img className="sku-qr" src={`/api/items/${item.id}/sku-qr`} alt={t("skuQrAlt", { sku: item.sku })} />
+            <figcaption className="muted">{t("skuQrHint")}</figcaption>
+          </figure>
+        </div>
       </div>
       <form key={item.updated_at} className="card form-grid" onSubmit={save}>
         <h3 style={{ margin: 0 }}>{t("details")}</h3>
