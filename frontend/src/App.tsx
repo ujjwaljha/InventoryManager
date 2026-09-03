@@ -1,4 +1,4 @@
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthGate, useAuth } from "./auth";
 import { LanguageSwitch, useI18n } from "./i18n";
 import { api, ApiError } from "./api";
@@ -334,7 +334,43 @@ function OpShell() {
   );
 }
 
+function DesktopHotkeys() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (!document.documentElement.classList.contains("desktop-app")) return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+      if (typing) return;
+      if (event.key === "1") {
+        event.preventDefault();
+        navigate("/till");
+      } else if (event.key === "2") {
+        event.preventDefault();
+        navigate("/shop");
+      } else if (event.key === ",") {
+        event.preventDefault();
+        navigate("/settings");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
+  return null;
+}
+
 export default function App() {
   const loc = useLocation();
-  return <AuthGate>{loc.pathname.startsWith("/shop") ? <ShopShell /> : <OpShell />}</AuthGate>;
+  return (
+    <>
+      <DesktopHotkeys />
+      <AuthGate>{loc.pathname.startsWith("/shop") ? <ShopShell /> : <OpShell />}</AuthGate>
+    </>
+  );
 }
