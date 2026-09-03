@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, ResultList, buildQuery, useDebounced, type PageResult } from "../components/Finder";
-import { ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { DocToolbar, ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
 import type { CreditReport, DamageNote, Invoice, Item, SupplierReturn } from "../types";
@@ -103,49 +103,47 @@ export function ReceiptDetail() {
         />
         <p className="muted">{t("thermalHint")}</p>
       </div>
-      {invoice.status === "issued" && (
-        <div className="row no-print">
-          <button
-            className="btn"
-            onClick={async () => {
-              const next = await api<Invoice>(`/api/invoices/${invoice.id}/mark-paid`, { method: "POST" });
-              setInvoice(next);
-            }}
-          >
-            {t("markPaid")}
-          </button>
-          <PaymentForm invoice={invoice} onPaid={setInvoice} />
-          <button
-            className="btn warn"
-            onClick={async () => {
-              if (!window.confirm(t("confirmCancel"))) return;
-              await api(`/api/orders/${invoice.purchase_order_id}/cancel`, { method: "POST" });
-              const next = await api<Invoice>(`/api/invoices/${invoice.id}`);
-              setInvoice(next);
-            }}
-          >
-            {t("cancelOrder")}
-          </button>
-        </div>
-      )}
       {invoice.status !== "void" && (
-        <div className="row no-print">
+        <DocToolbar>
+          {invoice.status === "issued" ? (
+            <>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const next = await api<Invoice>(`/api/invoices/${invoice.id}/mark-paid`, { method: "POST" });
+                  setInvoice(next);
+                }}
+              >
+                {t("markPaid")}
+              </button>
+              <PaymentForm invoice={invoice} onPaid={setInvoice} />
+              <button
+                className="btn warn"
+                onClick={async () => {
+                  if (!window.confirm(t("confirmCancel"))) return;
+                  await api(`/api/orders/${invoice.purchase_order_id}/cancel`, { method: "POST" });
+                  const next = await api<Invoice>(`/api/invoices/${invoice.id}`);
+                  setInvoice(next);
+                }}
+              >
+                {t("cancelOrder")}
+              </button>
+            </>
+          ) : null}
           <DueDateForm invoice={invoice} onSaved={setInvoice} />
-        </div>
-      )}
-      {invoice.status === "paid" && (
-        <div className="row no-print">
-          <button
-            className="btn ghost"
-            onClick={async () => {
-              if (!window.confirm(t("confirmUnpay"))) return;
-              const next = await api<Invoice>(`/api/invoices/${invoice.id}/unpay`, { method: "POST" });
-              setInvoice(next);
-            }}
-          >
-            {t("markUnpaid")}
-          </button>
-        </div>
+          {invoice.status === "paid" ? (
+            <button
+              className="btn ghost"
+              onClick={async () => {
+                if (!window.confirm(t("confirmUnpay"))) return;
+                const next = await api<Invoice>(`/api/invoices/${invoice.id}/unpay`, { method: "POST" });
+                setInvoice(next);
+              }}
+            >
+              {t("markUnpaid")}
+            </button>
+          ) : null}
+        </DocToolbar>
       )}
       <ThermalReceipt invoice={invoice} />
     </div>
@@ -290,7 +288,7 @@ export function CreditPage() {
             .filter((inv) => inv.shopper_id === c.shopper_id)
             .filter((inv) => filter === "all" || (inv.overdue_days || 0) > 0)
             .map((inv) => (
-              <Link key={inv.id} className="row split" to={`/receipts/${inv.id}`} style={{ marginTop: 8 }}>
+              <Link key={inv.id} className="nested-row" to={`/receipts/${inv.id}`}>
                 <span>
                   {inv.number} <StatusTag status={inv.status} />
                   {inv.due_date ? (
@@ -393,36 +391,44 @@ export function DamagePage() {
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("damageReason")} />
         </label>
         <ItemPicker onAdd={(item, qty) => setLines((c) => [...c, { item, quantity: qty }])} />
-        {lines.map((ln, idx) => (
-          <div className="row" key={`${ln.item.id}-${idx}`} style={{ justifyContent: "space-between" }}>
-            <span>
-              {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
-            </span>
-            <button type="button" className="btn ghost" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
-              ×
-            </button>
-          </div>
-        ))}
+        {lines.length > 0 ? (
+          <ResultList>
+            {lines.map((ln, idx) => (
+              <div className="result-row" key={`${ln.item.id}-${idx}`}>
+                <span>
+                  {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
+                </span>
+                <button type="button" className="btn ghost small" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </ResultList>
+        ) : null}
         <button className="btn warn" type="button" disabled={!reason || !lines.length} onClick={submit}>
           {t("saveDamage")}
         </button>
       </div>
-      {rows.map((row) => (
-        <section className="card" key={row.id}>
-          <b>{row.number}</b>
-          <div className="muted">
-            {row.reason} · {when(row.created_at, locale)}
-          </div>
-          <div>
-            {t("cogs")} {money(row.cogs_cents)}
-          </div>
-          {row.lines.map((ln) => (
-            <div key={ln.id} className="muted">
-              {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((row) => (
+            <div className="result-row" key={row.id}>
+              <div>
+                <b>{row.number}</b>
+                <div className="muted">
+                  {row.reason} · {when(row.created_at, locale)}
+                </div>
+                {row.lines.map((ln) => (
+                  <div key={ln.id} className="muted">
+                    {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+                  </div>
+                ))}
+              </div>
+              <div className="price">{money(row.cogs_cents)}</div>
             </div>
           ))}
-        </section>
-      ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }
@@ -483,36 +489,44 @@ export function ReturnsPage() {
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("returnReason")} />
         </label>
         <ItemPicker onAdd={(item, qty) => setLines((c) => [...c, { item, quantity: qty }])} />
-        {lines.map((ln, idx) => (
-          <div className="row" key={`${ln.item.id}-${idx}`} style={{ justifyContent: "space-between" }}>
-            <span>
-              {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
-            </span>
-            <button type="button" className="btn ghost" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
-              ×
-            </button>
-          </div>
-        ))}
+        {lines.length > 0 ? (
+          <ResultList>
+            {lines.map((ln, idx) => (
+              <div className="result-row" key={`${ln.item.id}-${idx}`}>
+                <span>
+                  {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
+                </span>
+                <button type="button" className="btn ghost small" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </ResultList>
+        ) : null}
         <button className="btn" type="button" disabled={!reason || !lines.length} onClick={submit}>
           {t("submitReturn")}
         </button>
       </div>
-      {rows.map((row) => (
-        <section className="card" key={row.id}>
-          <b>{row.number}</b>
-          <div className="muted">
-            {row.supplier_name} · {row.reason} · {when(row.created_at, locale)}
-          </div>
-          <div>
-            {t("cogs")} {money(row.cogs_cents)}
-          </div>
-          {row.lines.map((ln) => (
-            <div key={ln.id} className="muted">
-              {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((row) => (
+            <div className="result-row" key={row.id}>
+              <div>
+                <b>{row.number}</b>
+                <div className="muted">
+                  {row.supplier_name} · {row.reason} · {when(row.created_at, locale)}
+                </div>
+                {row.lines.map((ln) => (
+                  <div key={ln.id} className="muted">
+                    {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+                  </div>
+                ))}
+              </div>
+              <div className="price">{money(row.cogs_cents)}</div>
             </div>
           ))}
-        </section>
-      ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }

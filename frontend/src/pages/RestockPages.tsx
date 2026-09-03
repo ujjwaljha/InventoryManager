@@ -66,8 +66,16 @@ export function RestockNew() {
     }
   }
   return (
-    <form className="card form-grid" onSubmit={onSubmit}>
-      <PageHeader title={t("newRestock")} />
+    <div className="grid">
+      <PageHeader
+        title={t("newRestock")}
+        actions={
+          <Link className="btn ghost" to="/restock">
+            {t("restock")}
+          </Link>
+        }
+      />
+      <form className="card form-grid" onSubmit={onSubmit}>
       {error && <div className="banner">{error}</div>}
       <label>
         {t("supplierName")}
@@ -85,6 +93,7 @@ export function RestockNew() {
         {t("create")}
       </button>
     </form>
+    </div>
   );
 }
 
@@ -131,16 +140,30 @@ export function RestockDetail() {
   if (!row) return <p className="muted">{error || t("loading")}</p>;
   return (
     <div className="grid">
-      <Link to="/restock">{t("restock")}</Link>
+      <PageHeader
+        kicker={row.number}
+        title={row.supplier_name || t("supplier")}
+        hint={when(row.received_at || row.created_at, locale)}
+        actions={
+          <>
+            <Link className="btn ghost" to="/restock">
+              {t("restock")}
+            </Link>
+            {row.status === "draft" ? (
+              <button className="btn" type="button" onClick={receive} disabled={!row.lines.length}>
+                {t("receiveStock")}
+              </button>
+            ) : null}
+          </>
+        }
+      />
       {error && <div className="banner">{error}</div>}
-      <div className="card">
-      <PageHeader kicker={row.number} title={row.supplier_name || t("supplier")} />
+      <div className="row">
         <StatusTag status={row.status === "received" ? "received" : "draft"} />
-        <p className="muted">{when(row.received_at || row.created_at, locale)}</p>
         <div className="price">{money(row.total_cost_cents)}</div>
       </div>
       {row.status === "draft" && (
-        <div className="card">
+        <div className="card form-grid">
           <h3>{t("addLine")}</h3>
           <ItemPicker costMode onAdd={(item, qty, extra) => add(item, qty, extra)} />
         </div>
@@ -189,11 +212,6 @@ export function RestockDetail() {
           </tbody>
         </table>
       </div>
-      {row.status === "draft" && (
-        <button className="btn" type="button" onClick={receive} disabled={!row.lines.length}>
-          {t("receiveStock")}
-        </button>
-      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, PageHeader, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
+import { DocToolbar, InvoiceSheet, PageHeader, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
 import { UserAdmin } from "../auth";
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
@@ -320,8 +320,16 @@ export function OpNewItem() {
     }
   }
   return (
-    <form className="card form-grid" onSubmit={onSubmit}>
-      <PageHeader title={t("newItem")} />
+    <div className="grid">
+      <PageHeader
+        title={t("newItem")}
+        actions={
+          <Link className="btn ghost" to="/items">
+            {t("backItems")}
+          </Link>
+        }
+      />
+      <form className="card form-grid" onSubmit={onSubmit}>
       {error && <div className="banner">{error}</div>}
       <label>
         {t("sku")}
@@ -390,6 +398,7 @@ export function OpNewItem() {
         {t("create")}
       </button>
     </form>
+    </div>
   );
 }
 
@@ -407,12 +416,27 @@ export function OpInvoiceDetail() {
   if (!invoice) return <p className="muted">{error || t("loading")}</p>;
   return (
     <div className="grid print-thermal">
-      <div className="row no-print">
-        <Link to="/invoices">{t("backInvoices")}</Link>
-        <button className="btn ghost" onClick={() => window.print()}>
-          {t("printThermal")}
-        </button>
-        <ShareReceiptButton invoice={invoice} />
+      <div className="no-print">
+        <PageHeader
+          kicker={invoice.number}
+          title={invoice.shopper_name || t("invoices")}
+          hint={invoice.shopper_phone}
+          actions={
+            <>
+              <Link className="btn ghost" to="/invoices">
+                {t("backInvoices")}
+              </Link>
+              <button className="btn" onClick={() => window.print()}>
+                {t("printThermal")}
+              </button>
+              <ShareReceiptButton invoice={invoice} />
+            </>
+          }
+        />
+        <p className="muted">{t("invoiceAlsoReceipt")}</p>
+      </div>
+      {invoice.status !== "void" && (
+      <DocToolbar>
         {invoice.status === "issued" && (
           <button
             className="btn"
@@ -449,8 +473,8 @@ export function OpInvoiceDetail() {
             {t("markUnpaid")}
           </button>
         )}
-      </div>
-      <p className="muted no-print">{t("invoiceAlsoReceipt")}</p>
+      </DocToolbar>
+      )}
       <ThermalReceipt invoice={invoice} />
       <div className="no-print">
         <InvoiceSheet invoice={invoice} />

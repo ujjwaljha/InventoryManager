@@ -609,6 +609,10 @@ export function PageHeader({
   );
 }
 
+export function DocToolbar({ children }: { children: ReactNode }) {
+  return <div className="card doc-toolbar no-print">{children}</div>;
+}
+
 export function ShopNav({ count }: { count: number }) {
   const { t } = useI18n();
   const bump = useCountBump(count);

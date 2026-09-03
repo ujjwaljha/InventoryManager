@@ -121,10 +121,21 @@ export function CustomerDetailPage() {
 
   return (
     <div className="grid">
-      <div className="row">
-        <Link to="/customers">{t("customerFile")}</Link>
-      </div>
-      <PageHeader kicker={t("customerFile")} title={customer.name} hint={customer.phone} />
+      <PageHeader
+        kicker={t("customerFile")}
+        title={customer.name}
+        hint={customer.phone}
+        actions={
+          <>
+            <Link className="btn ghost" to="/customers">
+              {t("customerFile")}
+            </Link>
+            <Link className="btn" to={`/till?name=${encodeURIComponent(customer.name)}&phone=${encodeURIComponent(customer.phone)}`}>
+              {t("sellToCustomer")}
+            </Link>
+          </>
+        }
+      />
       {error && <div className="banner">{error}</div>}
       {note && <p className="muted">{note}</p>}
       <form
@@ -150,9 +161,6 @@ export function CustomerDetailPage() {
           <button className="btn" type="submit" disabled={busy}>
             {t("save")}
           </button>
-          <Link className="btn ghost" to={`/till?name=${encodeURIComponent(customer.name)}&phone=${encodeURIComponent(customer.phone)}`}>
-            {t("sellToCustomer")}
-          </Link>
           <Link className="btn ghost" to={`/reports?shopper_id=${customer.id}`}>
             {t("customerReport")}
           </Link>

@@ -283,7 +283,7 @@ export function UserAdmin() {
       {error && <div className="banner">{error}</div>}
       {note ? <p className="muted">{note}</p> : null}
       {users.map((u) => (
-        <div key={u.id} className="card" style={{ padding: 12 }}>
+        <div key={u.id} className="staff-row">
           <div className="row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div>
               <b>{u.display_name}</b>

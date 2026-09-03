@@ -1623,6 +1623,52 @@ button.result-row:hover {
   }
 }
 
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: flex-end;
+}
+
+.doc-toolbar form.row {
+  margin: 0;
+  align-items: flex-end;
+}
+
+.doc-toolbar label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.nested-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  color: inherit;
+}
+
+.nested-row:hover {
+  color: var(--forest-2);
+}
+
+.staff-row {
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  padding: 12px;
+  background: #fff;
+}
+
+.form-grid > .result-list {
+  box-shadow: none;
+}
+
 @media print {
   @page {
     size: 2.5in auto;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { DocToolbar, InvoiceSheet, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
@@ -107,48 +107,63 @@ export function ShopInvoiceDetail() {
   if (!invoice) return <p className="muted">{t("loadingInvoice")}</p>;
   return (
     <div className="grid print-thermal">
-      <div className="row no-print">
-        <Link to="/shop/invoices">{t("backInvoices")}</Link>
-        <button className="btn ghost" onClick={() => window.print()}>
-          {t("printThermal")}
-        </button>
-        <ShareReceiptButton invoice={invoice} />
-        {invoice.status === "issued" && (
-          <>
-            <button
-              className="btn"
-              onClick={async () => {
-                const next = await api<Invoice>(`/api/shop/invoices/${invoice.id}/mark-paid`, { method: "POST" });
-                setInvoice(next);
-              }}
-            >
-              {t("markPaid")}
-            </button>
-            <button
-              className="btn warn"
-              onClick={async () => {
-                if (!window.confirm(t("confirmCancel"))) return;
-                const next = await api<Invoice>(`/api/shop/invoices/${invoice.id}/cancel`, { method: "POST" });
-                setInvoice(next);
-              }}
-            >
-              {t("cancelOrder")}
-            </button>
-          </>
-        )}
-        {invoice.status === "paid" && (
-          <button
-            className="btn ghost"
-            onClick={async () => {
-              if (!window.confirm(t("confirmUnpay"))) return;
-              const next = await api<Invoice>(`/api/shop/invoices/${invoice.id}/unpay`, { method: "POST" });
-              setInvoice(next);
-            }}
-          >
-            {t("markUnpaid")}
-          </button>
-        )}
+      <div className="no-print">
+        <PageHeader
+          kicker={invoice.number}
+          title={invoice.shopper_name || t("yourInvoices")}
+          hint={invoice.shopper_phone}
+          actions={
+            <>
+              <Link className="btn ghost" to="/shop/invoices">
+                {t("backInvoices")}
+              </Link>
+              <button className="btn" onClick={() => window.print()}>
+                {t("printThermal")}
+              </button>
+              <ShareReceiptButton invoice={invoice} />
+            </>
+          }
+        />
       </div>
+      {(invoice.status === "issued" || invoice.status === "paid") && (
+        <DocToolbar>
+          {invoice.status === "issued" ? (
+            <>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const next = await api<Invoice>(`/api/shop/invoices/${invoice.id}/mark-paid`, { method: "POST" });
+                  setInvoice(next);
+                }}
+              >
+                {t("markPaid")}
+              </button>
+              <button
+                className="btn warn"
+                onClick={async () => {
+                  if (!window.confirm(t("confirmCancel"))) return;
+                  const next = await api<Invoice>(`/api/shop/invoices/${invoice.id}/cancel`, { method: "POST" });
+                  setInvoice(next);
+                }}
+              >
+                {t("cancelOrder")}
+              </button>
+            </>
+          ) : null}
+          {invoice.status === "paid" ? (
+            <button
+              className="btn ghost"
+              onClick={async () => {
+                if (!window.confirm(t("confirmUnpay"))) return;
+                const next = await api<Invoice>(`/api/shop/invoices/${invoice.id}/unpay`, { method: "POST" });
+                setInvoice(next);
+              }}
+            >
+              {t("markUnpaid")}
+            </button>
+          ) : null}
+        </DocToolbar>
+      )}
       <ThermalReceipt invoice={invoice} />
       <div className="no-print">
         <InvoiceSheet invoice={invoice} />
