@@ -132,7 +132,7 @@ function ShopShell() {
     <div className={`app-shell shop-with-cart${cartOpen ? "" : " collapsed"}`}>
       <header className="topbar">
         <Brand to="/shop" kicker={t("shopFloor")} name={name} />
-        <div className="row desktop-only">
+        <div className="row top-nav desktop-only">
           <NavLink to="/shop">{t("shop")}</NavLink>
           <NavLink to="/shop/order" data-order-target>
             {t("order")}
@@ -244,54 +244,66 @@ function OpShell() {
     <div className="app-shell side">
       <aside className="sidebar desktop-only">
         <Brand to="/" kicker={t("backOffice")} name={name} />
-        <NavLink to="/" end className={linkClass}>
-          {t("home")}
-        </NavLink>
-        <NavLink to="/till" className={linkClass}>
-          {t("till")}
-        </NavLink>
-        <NavLink to="/items" className={linkClass}>
-          {t("items")}
-        </NavLink>
-        <NavLink to="/restock" className={linkClass}>
-          {t("restock")}
-        </NavLink>
-        <NavLink to="/receipts" className={linkClass}>
-          {t("receipts")}
-        </NavLink>
-        <NavLink to="/credit" className={linkClass}>
-          {t("credit")}
-        </NavLink>
-        <NavLink to="/customers" className={linkClass}>
-          {t("customerFile")}
-        </NavLink>
-        <NavLink to="/reports" className={linkClass}>
-          {t("reports")}
-        </NavLink>
-        <NavLink to="/damage" className={linkClass}>
-          {t("damage")}
-        </NavLink>
-        <NavLink to="/returns" className={linkClass}>
-          {t("returns")}
-        </NavLink>
-        <NavLink to="/orders" className={linkClass}>
-          {t("orders")}
-        </NavLink>
-        <NavLink to="/settings" className={linkClass}>
-          {t("settings")}
-        </NavLink>
-        <NavLink to="/shop" className="btn ghost" style={{ marginTop: 12, textAlign: "center" }}>
-          {t("openShop")}
-        </NavLink>
-        <div style={{ marginTop: 12 }}>
+        <nav className="sidebar-nav">
+          <div className="nav-group-label">{t("navSales")}</div>
+          <NavLink to="/" end className={linkClass}>
+            {t("home")}
+          </NavLink>
+          <NavLink to="/till" className={linkClass}>
+            {t("till")}
+          </NavLink>
+          <NavLink to="/receipts" className={linkClass}>
+            {t("receipts")}
+          </NavLink>
+          <NavLink to="/credit" className={linkClass}>
+            {t("credit")}
+          </NavLink>
+          <NavLink to="/customers" className={linkClass}>
+            {t("customerFile")}
+          </NavLink>
+          <NavLink to="/orders" className={linkClass}>
+            {t("orders")}
+          </NavLink>
+          <div className="nav-group-label">{t("navStock")}</div>
+          <NavLink to="/items" className={linkClass}>
+            {t("items")}
+          </NavLink>
+          <NavLink to="/restock" className={linkClass}>
+            {t("restock")}
+          </NavLink>
+          <NavLink to="/damage" className={linkClass}>
+            {t("damage")}
+          </NavLink>
+          <NavLink to="/returns" className={linkClass}>
+            {t("returns")}
+          </NavLink>
+          <div className="nav-group-label">{t("navOffice")}</div>
+          <NavLink to="/reports" className={linkClass}>
+            {t("reports")}
+          </NavLink>
+          <NavLink to="/settings" className={linkClass}>
+            {t("settings")}
+          </NavLink>
+        </nav>
+        <div className="sidebar-foot">
+          <NavLink to="/shop" className="btn ghost block">
+            {t("openShop")}
+          </NavLink>
           <LanguageSwitch />
+          {user ? (
+            <div className="user-chip">
+              <span className="user-avatar">{(user.display_name || user.username).trim().charAt(0).toUpperCase()}</span>
+              <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user.display_name}
+              </span>
+            </div>
+          ) : null}
+          <button className="btn ghost small" type="button" onClick={() => logout()}>
+            {t("logout")}
+          </button>
         </div>
-        {user ? <div className="muted" style={{ marginTop: 10 }}>{user.display_name}</div> : null}
-        <button className="btn ghost" type="button" style={{ marginTop: 8 }} onClick={() => logout()}>
-          {t("logout")}
-        </button>
       </aside>
-      <div>
+      <div className="main-pane">
         <header className="topbar">
           <Brand to="/" kicker={t("backOffice")} name={name} />
           <div className="row">

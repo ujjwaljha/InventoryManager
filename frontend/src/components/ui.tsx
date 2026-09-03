@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { ScanButton, type ScanResult } from "./BarcodeScanner";
@@ -574,6 +574,29 @@ export function CustomerPicker({
         />
       </label>
     </>
+  );
+}
+
+export function PageHeader({
+  kicker,
+  title,
+  hint,
+  actions,
+}: {
+  kicker?: string;
+  title: string;
+  hint?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="page-header">
+      <div>
+        {kicker ? <div className="sku">{kicker}</div> : null}
+        <h2>{title}</h2>
+        {hint ? <p className="muted page-hint">{hint}</p> : null}
+      </div>
+      {actions ? <div className="page-actions">{actions}</div> : null}
+    </div>
   );
 }
 

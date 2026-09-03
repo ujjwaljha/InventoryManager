@@ -228,7 +228,7 @@ export function ShopHome({
       )}
       <div className="cards">
         {shown.map((item) => (
-          <article className="card" key={item.id}>
+          <article className="card product-card" key={item.id}>
             <div className="sku">{item.sku}</div>
             <h3 style={{ margin: "4px 0 8px" }}>{pick(item.name, item.name_id)}</h3>
             <p className="muted" style={{ minHeight: 40 }}>

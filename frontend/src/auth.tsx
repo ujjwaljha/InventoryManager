@@ -115,12 +115,15 @@ function LoginForm({ shopName, onDone }: { shopName: string; onDone: () => Promi
   }
 
   return (
-    <div className="app-shell">
-      <form className="card form-grid" onSubmit={submit} style={{ maxWidth: 400, margin: "48px auto" }}>
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <div className="sku">{shopName || t("shopNameFallback")}</div>
-            <h2 style={{ margin: "4px 0 0" }}>{t("loginRequired")}</h2>
+    <div className="auth-screen">
+      <form className="card form-grid auth-card" onSubmit={submit}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div className="auth-brand">
+            <span className="mark">{(shopName || t("shopNameFallback")).trim().charAt(0).toUpperCase()}</span>
+            <div>
+              <div className="brand">{shopName || t("shopNameFallback")}</div>
+              <h2>{t("loginRequired")}</h2>
+            </div>
           </div>
           <LanguageSwitch />
         </div>
@@ -174,12 +177,15 @@ function SetupForm({ shopName, onDone }: { shopName: string; onDone: () => Promi
   }
 
   return (
-    <div className="app-shell">
-      <form className="card form-grid" onSubmit={submit} style={{ maxWidth: 400, margin: "48px auto" }}>
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <div className="sku">{shopName || t("shopNameFallback")}</div>
-            <h2 style={{ margin: "4px 0 0" }}>{t("setupAdmin")}</h2>
+    <div className="auth-screen">
+      <form className="card form-grid auth-card" onSubmit={submit}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div className="auth-brand">
+            <span className="mark">{(shopName || t("shopNameFallback")).trim().charAt(0).toUpperCase()}</span>
+            <div>
+              <div className="brand">{shopName || t("shopNameFallback")}</div>
+              <h2>{t("setupAdmin")}</h2>
+            </div>
           </div>
           <LanguageSwitch />
         </div>

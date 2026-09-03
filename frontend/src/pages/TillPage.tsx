@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/CartPane";
-import { CustomerPicker, ItemPicker, SalesAgentSelect } from "../components/ui";
+import { CustomerPicker, ItemPicker, PageHeader, SalesAgentSelect } from "../components/ui";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
 import { formatQty, money, nudgeQty, qtyMoney } from "../money";
@@ -166,11 +166,7 @@ export function TillPage() {
   return (
     <div className={`till-with-cart${cartOpen ? "" : " collapsed"}`}>
       <div className="grid">
-      <div>
-        <div className="sku">{t("till")}</div>
-        <h2 style={{ margin: "4px 0 0" }}>{t("completeSale")}</h2>
-        <p className="muted">{t("tillHint")}</p>
-      </div>
+      <PageHeader kicker={t("till")} title={t("completeSale")} hint={t("tillHint")} />
       {error && <div className="banner">{error}</div>}
       {shortages.length > 0 && (
         <button className="btn ghost" type="button" onClick={trimToStock}>

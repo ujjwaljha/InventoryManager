@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../api";
-import { SharePanel } from "../components/ui";
+import { PageHeader, SharePanel } from "../components/ui";
 import { FinderBar, InvoiceResultCard, OrderResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, unitLabel } from "../money";
@@ -20,10 +20,7 @@ export function OpDashboard() {
   if (!data) return <p className="muted">{t("loading")}</p>;
   return (
     <div className="grid">
-      <div>
-        <div className="sku">{t("operator")}</div>
-        <h2 style={{ margin: "4px 0 0" }}>{data.shop_name}</h2>
-      </div>
+      <PageHeader kicker={t("operator")} title={data.shop_name} />
       <SharePanel />
       <div className="row">
         <Link className="btn" to="/till">
@@ -91,9 +88,9 @@ export function OpDashboard() {
       <div className="cards">
         <section className="card">
           <h3>{t("lowStock")}</h3>
-          {data.low_stock_items.length === 0 && <p className="muted">{t("nothingLow")}</p>}
+          {data.low_stock_items.length === 0 && <p className="muted empty">{t("nothingLow")}</p>}
           {data.low_stock_items.map((i) => (
-            <div key={i.id} className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+            <div key={i.id} className="list-row">
               <Link to={`/items/${i.id}`}>{pick(i.name, i.name_id)}</Link>
               <span className="stock low">
                 {formatQty(i.available ?? i.quantity)} / {formatQty(i.reorder_point)}
@@ -107,7 +104,7 @@ export function OpDashboard() {
         <section className="card">
           <h3>{t("recentMoves")}</h3>
           {data.recent_movements.map((m: Movement) => (
-            <div key={m.id} className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+            <div key={m.id} className="list-row">
               <span>
                 {pick(m.item_name || "", m.item_name_id)}{" "}
                 <span className="sku">{t(`kind_${m.kind}` as MsgKey)}</span>
@@ -171,12 +168,14 @@ export function OpItems() {
 
   return (
     <div className="grid">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>{t("items")}</h2>
-        <Link className="btn" to="/items/new">
-          {t("newItem")}
-        </Link>
-      </div>
+      <PageHeader
+        title={t("items")}
+        actions={
+          <Link className="btn" to="/items/new">
+            {t("newItem")}
+          </Link>
+        }
+      />
       {error && <div className="banner">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
       <input className="search" placeholder={t("searchSku")} value={q} onChange={(e) => setQ(e.target.value)} />
