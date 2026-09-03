@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
+import { ScanButton } from "../components/BarcodeScanner";
 import { IdentifyForm } from "../components/ui";
 import { useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel } from "../money";
+import { matchScannedCode, shortScanCode } from "../sku";
 import type { Item, PoLine, PurchaseOrder, Shopper, Shortage } from "../types";
 
 function flyAddToOrder(from: HTMLElement, label: string) {
@@ -130,12 +132,12 @@ export function ShopHome({
   });
   shown.sort((a, b) => pick(a.name, a.name_id).localeCompare(pick(b.name, b.name_id), locale === "id" ? "id" : "en"));
 
-  async function add(item: Item, from?: HTMLElement | null) {
+  async function add(item: Item, from?: HTMLElement | null): Promise<"ok" | "identify" | "error"> {
     setError("");
     if (!shopper) {
       setPendingItem(item);
       setIdentify(true);
-      return;
+      return "identify";
     }
     setAdding((cur) => ({ ...cur, [item.id]: true }));
     try {
@@ -145,13 +147,15 @@ export function ShopHome({
       });
       markAdded(item, from);
       onCartChange();
+      return "ok";
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setPendingItem(item);
         setIdentify(true);
-        return;
+        return "identify";
       }
       setError(e instanceof Error ? e.message : t("couldNotAdd"));
+      return "error";
     } finally {
       setAdding((cur) => ({ ...cur, [item.id]: false }));
     }
@@ -177,9 +181,30 @@ export function ShopHome({
     }
   }
 
+  async function handleScan(code: string) {
+    const item = matchScannedCode(items, code);
+    if (!item) return { ok: false, message: t("unknownSku", { sku: shortScanCode(code) }) };
+    if ((item.available ?? item.quantity) < qtyStep(item.unit)) {
+      return { ok: false, message: t("soldOut") };
+    }
+    if (!shopper) {
+      setPendingItem(item);
+      setIdentify(true);
+      return { ok: true, message: t("whoShopping"), close: true };
+    }
+    const from = document.querySelector<HTMLElement>(`[data-add-id="${item.id}"]`);
+    const result = await add(item, from);
+    if (result === "identify") return { ok: true, message: t("whoShopping"), close: true };
+    if (result === "error") return { ok: false, message: t("couldNotAdd") };
+    return { ok: true, message: t("scanAdded", { name: pick(item.name, item.name_id) }) };
+  }
+
   return (
     <div>
-      <input className="search" placeholder={t("searchShop")} value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="scan-row">
+        <input className="search" placeholder={t("searchShop")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <ScanButton onCode={handleScan} disabled={!items.length} />
+      </div>
       <div className="chips" style={{ margin: "12px 0" }}>
         <button className={`chip ${cat === "all" ? "on" : ""}`} onClick={() => setCat("all")}>
           {t("all")}

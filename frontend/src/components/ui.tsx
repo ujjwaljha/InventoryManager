@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../api";
+import { ScanButton, type ScanResult } from "./BarcodeScanner";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel, when, whenFull } from "../money";
 import { receiptPlainText, shareReceipt } from "../receiptShare";
+import { matchScannedCode, shortScanCode } from "../sku";
 import type { Invoice, Item, Settings, Shopper } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
@@ -230,17 +232,43 @@ export function ItemPicker({
     setQty(String(qtyStep(item.unit)));
   }
 
+  function finishAdd() {
+    setPicked(null);
+    setQ("");
+    setQty("1");
+    setExtra("");
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
   function tryAdd(item: Item) {
     const want = Number(qty);
     if (!Number.isFinite(want) || want <= 0) return;
     const sellable = item.available ?? item.quantity;
     if (!costMode && want > sellable) return;
     onAdd(item, want, extra ? Number(extra) : undefined);
-    setPicked(null);
-    setQ("");
-    setQty("1");
-    setExtra("");
-    window.setTimeout(() => searchRef.current?.focus(), 0);
+    finishAdd();
+  }
+
+  function commit(item: Item, quantity: number, cost?: number) {
+    onAdd(item, quantity, cost);
+    finishAdd();
+  }
+
+  async function handleScan(code: string): Promise<ScanResult> {
+    if (!items.length) return { ok: false, message: t("loading") };
+    const item = matchScannedCode(items, code);
+    if (!item) return { ok: false, message: t("unknownSku", { sku: shortScanCode(code) }) };
+    const step = qtyStep(item.unit);
+    const sellable = item.available ?? item.quantity;
+    if (!costMode && step > sellable) {
+      return {
+        ok: false,
+        message: t("onlyLeft", { name: pick(item.name, item.name_id), available: formatQty(sellable) }),
+      };
+    }
+    const cost = costMode ? Math.round((item.fifo_cogs_cents ?? item.unit_cost_cents) / 100) : undefined;
+    commit(item, step, cost);
+    return { ok: true, message: t("scanAdded", { name: pick(item.name, item.name_id) }) };
   }
 
   function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -283,26 +311,32 @@ export function ItemPicker({
 
   return (
     <div className="form-grid">
-      <label>
-        {t("item")}
-        <input
-          ref={searchRef}
-          className="search"
-          placeholder={t("searchSku")}
-          value={picked ? pick(picked.name, picked.name_id) : q}
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          onChange={(e) => {
-            setPicked(null);
-            setQ(e.target.value);
-          }}
-          onKeyDown={onSearchKeyDown}
-        />
-      </label>
+      <div className="scan-row">
+        <label>
+          {t("item")}
+          <input
+            ref={searchRef}
+            className="search"
+            placeholder={t("searchSku")}
+            value={picked ? pick(picked.name, picked.name_id) : q}
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            onChange={(e) => {
+              setPicked(null);
+              setQ(e.target.value);
+            }}
+            onKeyDown={onSearchKeyDown}
+          />
+        </label>
+        <ScanButton onCode={handleScan} disabled={!items.length} />
+      </div>
       <p className="muted" style={{ margin: 0 }}>
         {t("scanSkuHint")}
+      </p>
+      <p className="muted" style={{ margin: 0 }}>
+        {t("scanCameraHint")}
       </p>
       {!picked && q && (
         <div className="pick-list">
