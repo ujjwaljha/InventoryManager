@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db, raise_checkout
 from app.models import CreditNote, Invoice, PurchaseOrder, Shopper
-from app.schemas import CounterOrderIn, CreditNoteIn, InvoiceDueIn, PaymentIn, PlaceIn, PoLineIn
+from app.schemas import CounterOrderIn, CreditNoteIn, InvoiceDueIn, PaymentIn, PlaceIn, PoLineIn, ShopperPatch
 from app.serialize import invoice_out, po_out_with_settings
 from app.qty import to_store
 from app.services import checkout as chk
@@ -32,8 +32,48 @@ def _load_orders(db: Session, status: str | None):
 
 
 @router.get("/shoppers")
-def list_shoppers(q: str | None = Query(default=None), db: Session = Depends(get_db)):
-    return [chk.shopper_public(s) for s in chk.search_shoppers(db, q)]
+def list_shoppers(
+    q: str | None = Query(default=None),
+    limit: int = Query(default=80, le=500),
+    db: Session = Depends(get_db),
+):
+    return chk.shopper_summaries(db, q, limit)
+
+
+@router.get("/shoppers/{shopper_id}")
+def get_shopper(shopper_id: int, db: Session = Depends(get_db)):
+    shopper = db.get(Shopper, shopper_id)
+    if shopper is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    card = chk.decorate_shoppers(db, [shopper])[0]
+    invoices = list(
+        db.execute(
+            select(Invoice)
+            .options(
+                selectinload(Invoice.lines),
+                selectinload(Invoice.shopper),
+                selectinload(Invoice.purchase_order),
+                selectinload(Invoice.payments),
+            )
+            .where(Invoice.shopper_id == shopper_id, Invoice.status.in_(("issued", "paid")))
+            .order_by(Invoice.issued_at.desc())
+            .limit(50)
+        ).scalars()
+    )
+    card["invoices"] = [invoice_out(inv) for inv in invoices]
+    return card
+
+
+@router.patch("/shoppers/{shopper_id}")
+def patch_shopper(shopper_id: int, body: ShopperPatch, db: Session = Depends(get_db)):
+    try:
+        shopper = chk.update_shopper(db, shopper_id, name=body.name, phone=body.phone, email=body.email)
+        db.commit()
+        db.refresh(shopper)
+    except Exception as err:
+        db.rollback()
+        raise_checkout(err)
+    return chk.decorate_shoppers(db, [shopper])[0]
 
 
 @router.get("/orders")

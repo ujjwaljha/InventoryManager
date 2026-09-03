@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { StatusTag } from "../components/ui";
 import { useI18n } from "../i18n";
@@ -84,6 +84,7 @@ function DateRange({
 
 export function ReportsPage() {
   const { t, pick, locale } = useI18n();
+  const [params, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<"daily" | "items" | "cats" | "people" | "tax" | "stock" | "ledger">("daily");
   const [peopleSort, setPeopleSort] = useState<"sales" | "collected">("sales");
   const [purpose, setPurpose] = useState("");
@@ -94,8 +95,20 @@ export function ReportsPage() {
   const [stock, setStock] = useState<StockReport | null>(null);
   const [ledger, setLedger] = useState<Movement[]>([]);
   const [error, setError] = useState("");
-  const [shopperId, setShopperId] = useState<number | "">("");
+  const [shopperId, setShopperId] = useState<number | "">(() => {
+    const v = params.get("shopper_id");
+    const n = Number(v);
+    return v && Number.isFinite(n) && n > 0 ? n : "";
+  });
   const [shoppers, setShoppers] = useState<Shopper[]>([]);
+
+  function chooseShopper(id: number | "") {
+    setShopperId(id);
+    const next = new URLSearchParams(params);
+    if (id === "") next.delete("shopper_id");
+    else next.set("shopper_id", String(id));
+    setSearchParams(next, { replace: true });
+  }
 
   useEffect(() => {
     api<Settings>("/api/settings")
@@ -253,7 +266,7 @@ export function ReportsPage() {
             {t("customerReport")}
             <select
               value={shopperId === "" ? "" : String(shopperId)}
-              onChange={(e) => setShopperId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => chooseShopper(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">{t("allCustomers")}</option>
               {shoppers.map((s) => (
@@ -267,7 +280,7 @@ export function ReportsPage() {
           {sales?.shopper ? (
             <p>
               <b>{t("customerReport")}:</b> {sales.shopper.name} · {sales.shopper.phone}{" "}
-              <button className="linkish" type="button" onClick={() => setShopperId("")}>
+              <button className="linkish" type="button" onClick={() => chooseShopper("")}>
                 {t("allCustomers")}
               </button>
             </p>
@@ -482,7 +495,7 @@ export function ReportsPage() {
                 customers
                 sortBy={peopleSort}
                 onPick={(id) => {
-                  setShopperId(id);
+                  chooseShopper(id);
                   setTab("daily");
                 }}
               />

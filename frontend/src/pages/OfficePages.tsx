@@ -507,6 +507,7 @@ export function MorePage() {
     ["/returns", t("returns")],
     ["/orders", t("orders")],
     ["/credit", t("credit")],
+    ["/customers", t("customerFile")],
     ["/invoices", t("invoices")],
     ["/settings", t("settings")],
     ["/shop", t("openShop")],

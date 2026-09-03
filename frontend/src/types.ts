@@ -38,6 +38,10 @@ export type Shopper = {
   name: string;
   phone: string;
   email: string;
+  receipt_count?: number;
+  revenue_cents?: number;
+  unpaid_cents?: number;
+  last_issued_at?: string | null;
 };
 
 export type PoLine = {

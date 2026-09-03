@@ -6,6 +6,7 @@ import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "./components/Cart
 import { OpDashboard, OpInvoices, OpItems, OpOrders } from "./pages/OpPages";
 import { OpInvoiceDetail, OpItemDetail, OpNewItem, OpSettings } from "./pages/OpDetailPages";
 import { CreditPage, DamagePage, MorePage, ReceiptDetail, ReceiptsPage, ReturnsPage } from "./pages/OfficePages";
+import { CustomerDetailPage, CustomersPage } from "./pages/CustomersPage";
 import { RestockDetail, RestockList, RestockNew } from "./pages/RestockPages";
 import { ReportsPage } from "./pages/ReportPages";
 import { TillPage } from "./pages/TillPage";
@@ -269,6 +270,9 @@ function OpShell() {
         <NavLink to="/credit" className={linkClass}>
           {t("credit")}
         </NavLink>
+        <NavLink to="/customers" className={linkClass}>
+          {t("customerFile")}
+        </NavLink>
         <NavLink to="/reports" className={linkClass}>
           {t("reports")}
         </NavLink>
@@ -313,6 +317,8 @@ function OpShell() {
           <Route path="/receipts" element={<ReceiptsPage />} />
           <Route path="/receipts/:id" element={<ReceiptDetail />} />
           <Route path="/credit" element={<CreditPage />} />
+          <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/customers/:id" element={<CustomerDetailPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/damage" element={<DamagePage />} />
           <Route path="/returns" element={<ReturnsPage />} />

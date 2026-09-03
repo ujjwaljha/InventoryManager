@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/CartPane";
 import { CustomerPicker, ItemPicker } from "../components/ui";
@@ -12,6 +12,7 @@ type Line = { item: Item; quantity: number };
 export function TillPage() {
   const { t, pick } = useI18n();
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const [salesperson, setSalesperson] = useState(() => {
     try {
       return localStorage.getItem("im_salesperson") || "";
@@ -19,8 +20,8 @@ export function TillPage() {
       return "";
     }
   });
-  const [customer, setCustomer] = useState("");
-  const [phone, setPhone] = useState("");
+  const [customer, setCustomer] = useState(() => params.get("name") || "");
+  const [phone, setPhone] = useState(() => params.get("phone") || "");
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
