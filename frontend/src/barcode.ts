@@ -115,14 +115,38 @@ async function detectQrFallback(source: ImageBitmapSource): Promise<string | nul
   const image = await imageDataFrom(source);
   if (!image) return null;
   const { default: jsQR } = await import("jsqr");
-  const variants = [image];
-  if (image.width < 400 || image.height < 400) variants.push(upsample(image, 2));
+  const padded = addQuietZone(image, Math.max(16, Math.round(Math.min(image.width, image.height) * 0.08)));
+  const variants = [padded];
+  if (padded.width < 400 || padded.height < 400) variants.push(upsample(padded, 2));
   for (const variant of variants) {
     const hit = jsQR(variant.data, variant.width, variant.height, { inversionAttempts: "attemptBoth" });
     const raw = hit?.data?.trim();
     if (raw) return raw;
   }
   return null;
+}
+
+function addQuietZone(image: ImageData, pad: number): ImageData {
+  const w = image.width + pad * 2;
+  const h = image.height + pad * 2;
+  const out = new ImageData(w, h);
+  for (let i = 0; i < out.data.length; i += 4) {
+    out.data[i] = 255;
+    out.data[i + 1] = 255;
+    out.data[i + 2] = 255;
+    out.data[i + 3] = 255;
+  }
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const si = (y * image.width + x) * 4;
+      const di = ((y + pad) * w + (x + pad)) * 4;
+      out.data[di] = image.data[si];
+      out.data[di + 1] = image.data[si + 1];
+      out.data[di + 2] = image.data[si + 2];
+      out.data[di + 3] = 255;
+    }
+  }
+  return out;
 }
 
 export async function detectBarcode(source: ImageBitmapSource): Promise<string | null> {

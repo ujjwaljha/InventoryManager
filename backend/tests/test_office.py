@@ -79,6 +79,8 @@ def test_item_sku_qr(client: TestClient):
     body = res.content.lower()
     assert b"<svg" in body
     assert res.headers["content-type"].startswith("image/svg")
+    # Regular QR (not Micro QR) so phone cameras and jsQR can read the SKU.
+    assert b'width="290"' in res.content
     missing = client.get("/api/items/999999/sku-qr")
     assert missing.status_code == 404
 
