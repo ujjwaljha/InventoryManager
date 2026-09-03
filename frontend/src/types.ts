@@ -1,3 +1,11 @@
+export type StaffUser = {
+  id: number;
+  username: string;
+  display_name: string;
+  is_sales_agent: boolean;
+  is_active: boolean;
+};
+
 export type Item = {
   id: number;
   sku: string;

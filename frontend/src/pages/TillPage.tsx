@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/CartPane";
-import { CustomerPicker, ItemPicker } from "../components/ui";
+import { CustomerPicker, ItemPicker, SalesAgentSelect } from "../components/ui";
+import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
 import { formatQty, money, nudgeQty, qtyMoney } from "../money";
 import type { Item, Shortage } from "../types";
@@ -11,11 +12,12 @@ type Line = { item: Item; quantity: number };
 
 export function TillPage() {
   const { t, pick } = useI18n();
+  const { user } = useAuth();
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const [salesperson, setSalesperson] = useState(() => {
+  const [salesperson, setSalesperson] = useState<string | null>(() => {
     try {
-      return localStorage.getItem("im_salesperson") || "";
+      return localStorage.getItem("im_salesperson");
     } catch {
       return "";
     }
@@ -44,6 +46,16 @@ export function TillPage() {
   }
 
   useEffect(() => {
+    if (salesperson !== null) return;
+    if (user?.is_sales_agent) {
+      setSalesperson(user.display_name);
+      return;
+    }
+    if (user) setSalesperson("");
+  }, [user, salesperson]);
+
+  useEffect(() => {
+    if (salesperson === null) return;
     try {
       localStorage.setItem("im_salesperson", salesperson);
     } catch {
@@ -114,7 +126,7 @@ export function TillPage() {
       const inv = await api<{ id: number }>("/api/sales", {
         method: "POST",
         body: JSON.stringify({
-          salesperson_name: salesperson,
+          salesperson_name: salesperson || "",
           customer_name: customer,
           customer_phone: phone,
           lines: lines.map((ln) => ({ item_id: ln.item.id, quantity: ln.quantity })),
@@ -172,15 +184,7 @@ export function TillPage() {
           submit();
         }}
       >
-        <label>
-          {t("salesperson")}
-          <input
-            required
-            value={salesperson}
-            onChange={(e) => setSalesperson(e.target.value)}
-            placeholder={t("salespersonPlaceholder")}
-          />
-        </label>
+        <SalesAgentSelect value={salesperson || ""} onChange={setSalesperson} />
         <CustomerPicker name={customer} phone={phone} onName={setCustomer} onPhone={setPhone} />
         <p className="muted">{t("tillKeepsCart")}</p>
         <ItemPicker onAdd={(item, qty) => add(item, qty)} />

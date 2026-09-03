@@ -265,15 +265,6 @@ class SettingsOut(BaseModel):
     credit_days: int = 30
 
 
-class PinIn(BaseModel):
-    pin: str = Field(min_length=4, max_length=16)
-    current_pin: str = ""
-
-
-class UnlockIn(BaseModel):
-    pin: str = Field(min_length=4, max_length=16)
-
-
 class PaymentIn(BaseModel):
     amount_cents: int = Field(gt=0)
     note: str = ""
@@ -355,10 +346,43 @@ class SupplierReturnIn(BaseModel):
 
 
 class TillSaleIn(BaseModel):
-    salesperson_name: str = Field(min_length=1)
+    salesperson_name: str = ""
     customer_name: str = Field(min_length=1)
     customer_phone: str = Field(min_length=6)
     note: str = ""
     paid: bool = False
     lines: list[OfficeLineIn]
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class SetupIn(BaseModel):
+    username: str = Field(min_length=2, max_length=32)
+    password: str = Field(min_length=4, max_length=128)
+    display_name: str = ""
+
+
+class UserCreateIn(BaseModel):
+    username: str = Field(min_length=2, max_length=32)
+    password: str = Field(min_length=4, max_length=128)
+    display_name: str = ""
+    is_sales_agent: bool = False
+
+
+class UserPatchIn(BaseModel):
+    display_name: str | None = None
+    password: str | None = Field(default=None, min_length=4, max_length=128)
+    is_sales_agent: bool | None = None
+    is_active: bool | None = None
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    is_sales_agent: bool
+    is_active: bool
 

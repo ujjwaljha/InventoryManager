@@ -24,6 +24,7 @@ from app.models import (
     SupplierReturn,
     SupplierReturnLine,
 )
+from app.operator import seed_demo_users
 from app.qty import to_store
 from app.services.stock import apply_movement, backfill_opening_lots
 from app.timeutil import utcnow
@@ -1122,5 +1123,6 @@ def seed_if_empty(db: Session) -> None:
         for name, phone, notes in SEED_SUPPLIERS:
             db.add(Supplier(name=name, phone=phone, notes=notes, created_at=now))
 
+    seed_demo_users(db)
     backfill_opening_lots(db)
     db.commit()

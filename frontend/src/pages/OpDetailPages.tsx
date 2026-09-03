@@ -1,7 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, PinSettings, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
+import { InvoiceSheet, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
+import { UserAdmin } from "../auth";
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, unitLabel, when } from "../money";
@@ -153,6 +154,7 @@ export function OpItemDetail() {
         <label>
           {t("sellPrice")}
           <input name="price" type="number" step="1" defaultValue={rupiahFromCents(item.unit_price_cents)} />
+          <span className="muted">{t("sellPriceHint")}</span>
         </label>
         <label>
           {t("lastCost")}
@@ -365,10 +367,11 @@ export function OpNewItem() {
         {t("unit")}
         <input name="unit" defaultValue="pcs" />
       </label>
-      <label>
-        {t("sellPrice")}
-        <input name="price" type="number" step="1" defaultValue={0} />
-      </label>
+        <label>
+          {t("sellPrice")}
+          <input name="price" type="number" step="1" defaultValue={0} />
+          <span className="muted">{t("sellPriceHint")}</span>
+        </label>
       <label>
         {t("cost")}
         <input name="cost" type="number" step="1" defaultValue={0} />
@@ -485,7 +488,7 @@ export function OpSettings() {
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("shopSettings")}</h2>
       <SharePanel showRestore />
-      <PinSettings pinSet={Boolean(s.pin_set)} onChange={() => api<Settings>("/api/settings").then(setS)} />
+      <UserAdmin />
       <form className="card form-grid" onSubmit={onSubmit}>
         <label>
           {t("shopName")}

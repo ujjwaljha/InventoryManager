@@ -42,6 +42,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     const detail =
       body && typeof body === "object" && "detail" in body ? (body as { detail: unknown }).detail : body;
+    if (res.status === 401 && path !== "/api/operator/login" && path !== "/api/operator/setup") {
+      const msg = typeof detail === "string" ? detail : "";
+      if (msg === "Login required") {
+        window.dispatchEvent(new Event("im-auth-lost"));
+      }
+    }
     throw new ApiError(res.status, detail);
   }
   return body as T;

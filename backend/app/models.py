@@ -43,6 +43,26 @@ class ShopSettings(Base):
     __table_args__ = (CheckConstraint("id = 1", name="ck_settings_singleton"),)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    password_salt: Mapped[str] = mapped_column(Text, nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    is_sales_agent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("is_sales_agent IN (0, 1)", name="ck_user_agent"),
+        CheckConstraint("is_active IN (0, 1)", name="ck_user_active"),
+        Index("idx_users_agent", "is_sales_agent", "is_active"),
+    )
+
+
 class Category(Base):
     __tablename__ = "categories"
 

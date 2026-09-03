@@ -9,10 +9,22 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db import make_session_factory, replace_sqlite_file
 from app.deps import get_db, raise_checkout
-from app.models import Category, Item, Location
+from app.models import Category, Item, Location, User
 from app.netutil import lan_ip, shop_url
-from app.operator import SESSION_KEY, clear_pin, pin_is_set, set_pin, verify_pin
-from app.schemas import PinIn, SettingsIn, UnlockIn
+from app.operator import (
+    create_user,
+    current_user,
+    get_user_by_username,
+    list_sales_agents,
+    list_users,
+    login_user,
+    logout_user,
+    patch_user,
+    user_count,
+    user_public,
+    verify_password,
+)
+from app.schemas import LoginIn, SettingsIn, SetupIn, UserCreateIn, UserPatchIn
 from app.serialize import settings_out
 from app.qty import from_store, to_store
 from app.services.checkout import get_settings
@@ -51,50 +63,104 @@ def update_settings(body: SettingsIn, db: Session = Depends(get_db)):
 
 @router.get("/operator/status")
 def operator_status(request: Request, db: Session = Depends(get_db)):
-    needed = pin_is_set(get_settings(db))
-    return {"required": needed, "unlocked": bool(request.session.get(SESSION_KEY)) if needed else True}
+    user = current_user(request, db)
+    setup_needed = user_count(db) == 0
+    logged_in = user is not None
+    return {
+        "required": True,
+        "unlocked": logged_in,
+        "logged_in": logged_in,
+        "setup_needed": setup_needed,
+        "shop_name": get_settings(db).name,
+        "user": user_public(user) if user else None,
+    }
 
 
-@router.post("/operator/unlock")
-def operator_unlock(body: UnlockIn, request: Request, db: Session = Depends(get_db)):
-    settings = get_settings(db)
-    if not pin_is_set(settings):
-        request.session[SESSION_KEY] = True
-        return {"ok": True, "required": False, "unlocked": True}
-    if not verify_pin(settings, body.pin):
-        raise HTTPException(status_code=401, detail="Wrong PIN")
-    request.session[SESSION_KEY] = True
-    return {"ok": True, "required": True, "unlocked": True}
+@router.post("/operator/login")
+def operator_login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    user = get_user_by_username(db, body.username)
+    if user is None or not user.is_active or not verify_password(user, body.password):
+        raise HTTPException(status_code=401, detail="Wrong username or password")
+    login_user(request, user)
+    return {"ok": True, "logged_in": True, "user": user_public(user)}
 
 
+@router.post("/operator/setup")
+def operator_setup(body: SetupIn, request: Request, db: Session = Depends(get_db)):
+    if user_count(db) > 0:
+        raise HTTPException(status_code=400, detail="Staff accounts already exist. Sign in instead.")
+    try:
+        user = create_user(
+            db,
+            username=body.username,
+            password=body.password,
+            display_name=body.display_name,
+            is_sales_agent=False,
+        )
+        db.commit()
+        db.refresh(user)
+    except Exception as err:
+        db.rollback()
+        raise_checkout(err)
+    login_user(request, user)
+    return {"ok": True, "logged_in": True, "user": user_public(user)}
+
+
+@router.post("/operator/logout")
 @router.post("/operator/lock")
-def operator_lock(request: Request):
-    request.session.pop(SESSION_KEY, None)
-    return {"ok": True, "unlocked": False}
+def operator_logout(request: Request):
+    logout_user(request)
+    return {"ok": True, "logged_in": False, "unlocked": False}
 
 
-@router.post("/operator/pin")
-def operator_set_pin(body: PinIn, request: Request, db: Session = Depends(get_db)):
+@router.get("/users")
+def read_users(db: Session = Depends(get_db)):
+    return [user_public(u) for u in list_users(db)]
+
+
+@router.post("/users")
+def add_user(body: UserCreateIn, db: Session = Depends(get_db)):
     try:
-        settings = set_pin(db, body.pin, body.current_pin)
+        user = create_user(
+            db,
+            username=body.username,
+            password=body.password,
+            display_name=body.display_name,
+            is_sales_agent=body.is_sales_agent,
+        )
         db.commit()
+        db.refresh(user)
     except Exception as err:
         db.rollback()
         raise_checkout(err)
-    request.session[SESSION_KEY] = True
-    return {"ok": True, "pin_set": pin_is_set(settings)}
+    return user_public(user)
 
 
-@router.post("/operator/pin/clear")
-def operator_clear_pin(body: UnlockIn, request: Request, db: Session = Depends(get_db)):
+@router.patch("/users/{user_id}")
+def update_user(user_id: int, body: UserPatchIn, db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Staff account not found")
     try:
-        settings = clear_pin(db, body.pin)
+        user = patch_user(
+            db,
+            user,
+            display_name=body.display_name,
+            password=body.password,
+            is_sales_agent=body.is_sales_agent,
+            is_active=body.is_active,
+        )
         db.commit()
+        db.refresh(user)
     except Exception as err:
         db.rollback()
         raise_checkout(err)
-    request.session.pop(SESSION_KEY, None)
-    return {"ok": True, "pin_set": pin_is_set(settings)}
+    return user_public(user)
+
+
+@router.get("/sales-agents")
+def read_sales_agents(db: Session = Depends(get_db)):
+    return [user_public(u) for u in list_sales_agents(db)]
 
 
 @router.get("/health")

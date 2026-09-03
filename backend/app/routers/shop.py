@@ -37,7 +37,7 @@ def me(request: Request, db: Session = Depends(get_db)):
         return {"shopper": None}
     shopper = db.get(Shopper, int(sid))
     if shopper is None:
-        request.session.clear()
+        request.session.pop("shopper_id", None)
         return {"shopper": None}
     return {"shopper": {"id": shopper.id, "name": shopper.name, "phone": shopper.phone, "email": shopper.email}}
 
@@ -52,7 +52,7 @@ def logout(
     if sid and not keep_cart:
         chk.abandon_drafts(db, int(sid))
         db.commit()
-    request.session.clear()
+    request.session.pop("shopper_id", None)
     return {"ok": True, "kept_cart": bool(keep_cart and sid)}
 
 

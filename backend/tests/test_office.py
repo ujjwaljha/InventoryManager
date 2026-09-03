@@ -3,14 +3,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from helpers import login, make_client
 
 
 @pytest.fixture
 def client(tmp_path: Path) -> TestClient:
-    db = tmp_path / "office.db"
-    app = create_app(f"sqlite:///{db}")
-    return TestClient(app)
+    return make_client(tmp_path, "office.db")
 
 
 def _item(client: TestClient, sku: str) -> dict:
@@ -558,6 +556,7 @@ def test_damage_cannot_take_draft_held_stock(client: TestClient):
     dash = client.get("/api/dashboard").json()
     assert dash["units_reserved"] == nails["available"]
     shop = TestClient(client.app)
+    login(shop)
     shop.post("/api/shop/session", json={"name": "Hold", "phone": "081399900050"})
     orders = shop.get("/api/shop/orders")
     assert orders.status_code == 200

@@ -317,6 +317,8 @@ def patch_item(item_id: int, body: ItemPatch, db: Session = Depends(get_db)):
     if "reorder_point" in data and data["reorder_point"] is not None:
         data["reorder_point"] = to_store(data["reorder_point"])
     for key, value in data.items():
+        # Changing the sell price only updates the catalog. Issued invoices keep
+        # the unit_price_cents copied onto invoice_lines at place time.
         setattr(item, key, value)
     item.updated_at = utcnow()
     db.commit()
