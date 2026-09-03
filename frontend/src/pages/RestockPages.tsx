@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { ItemPicker, StatusTag } from "../components/ui";
+import { ItemPicker, PageHeader, StatusTag } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, when } from "../money";
 import type { Item, Restock } from "../types";
@@ -14,15 +14,15 @@ export function RestockList() {
   }, []);
   return (
     <div className="grid">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h2 style={{ margin: 0 }}>{t("restockTitle")}</h2>
-          <p className="muted">{t("restockHint")}</p>
-        </div>
-        <Link className="btn" to="/restock/new">
-          {t("newRestock")}
-        </Link>
-      </div>
+      <PageHeader
+        title={t("restockTitle")}
+        hint={t("restockHint")}
+        actions={
+          <Link className="btn" to="/restock/new">
+            {t("newRestock")}
+          </Link>
+        }
+      />
       {rows.length === 0 && <p className="muted">{t("noRows")}</p>}
       {rows.map((row) => (
         <Link className="card row" key={row.id} to={`/restock/${row.id}`} style={{ justifyContent: "space-between" }}>
@@ -62,7 +62,7 @@ export function RestockNew() {
   }
   return (
     <form className="card form-grid" onSubmit={onSubmit}>
-      <h2 style={{ margin: 0 }}>{t("newRestock")}</h2>
+      <PageHeader title={t("newRestock")} />
       {error && <div className="banner">{error}</div>}
       <label>
         {t("supplierName")}
@@ -129,8 +129,7 @@ export function RestockDetail() {
       <Link to="/restock">{t("restock")}</Link>
       {error && <div className="banner">{error}</div>}
       <div className="card">
-        <div className="sku">{row.number}</div>
-        <h2 style={{ margin: "4px 0" }}>{row.supplier_name || t("supplier")}</h2>
+      <PageHeader kicker={row.number} title={row.supplier_name || t("supplier")} />
         <StatusTag status={row.status === "received" ? "received" : "draft"} />
         <p className="muted">{when(row.received_at || row.created_at, locale)}</p>
         <div className="price">{money(row.total_cost_cents)}</div>

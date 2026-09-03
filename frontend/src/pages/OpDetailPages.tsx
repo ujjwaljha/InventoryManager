@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
+import { InvoiceSheet, PageHeader, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
 import { UserAdmin } from "../auth";
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
@@ -315,7 +315,7 @@ export function OpNewItem() {
   }
   return (
     <form className="card form-grid" onSubmit={onSubmit}>
-      <h2 style={{ margin: 0 }}>{t("newItem")}</h2>
+      <PageHeader title={t("newItem")} />
       {error && <div className="banner">{error}</div>}
       <label>
         {t("sku")}
@@ -486,7 +486,7 @@ export function OpSettings() {
   }
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("shopSettings")}</h2>
+      <PageHeader title={t("shopSettings")} />
       <SharePanel showRestore />
       <UserAdmin />
       <form className="card form-grid" onSubmit={onSubmit}>

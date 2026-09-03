@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
-import { StatusTag } from "../components/ui";
+import { PageHeader, StatusTag } from "../components/ui";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice, Shopper } from "../types";
@@ -27,10 +27,7 @@ export function CustomersPage() {
 
   return (
     <div className="grid">
-      <div>
-        <h2 style={{ margin: 0 }}>{t("customerFile")}</h2>
-        <p className="muted">{t("customerFileHint")}</p>
-      </div>
+      <PageHeader title={t("customerFile")} hint={t("customerFileHint")} />
       <form
         className="row"
         onSubmit={(e) => {
@@ -122,10 +119,7 @@ export function CustomerDetailPage() {
       <div className="row">
         <Link to="/customers">{t("customerFile")}</Link>
       </div>
-      <div>
-        <h2 style={{ margin: 0 }}>{customer.name}</h2>
-        <p className="muted">{customer.phone}</p>
-      </div>
+      <PageHeader kicker={t("customerFile")} title={customer.name} hint={customer.phone} />
       {error && <div className="banner">{error}</div>}
       {note && <p className="muted">{note}</p>}
       <form

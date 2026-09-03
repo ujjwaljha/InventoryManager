@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { StatusTag } from "../components/ui";
+import { PageHeader, StatusTag } from "../components/ui";
 import { useI18n } from "../i18n";
 import { formatQty, marginPct, money, monthStart, todayInput, unitLabel, weekStartMonday } from "../money";
 import type { Movement, ReportPerson, SalesReport, Settings, Shopper, StockReport } from "../types";
@@ -225,10 +225,7 @@ export function ReportsPage() {
 
   return (
     <div className="grid">
-      <div>
-        <h2 style={{ margin: 0 }}>{t("reports")}</h2>
-        <p className="muted">{t("reportsHint")}</p>
-      </div>
+      <PageHeader title={t("reports")} hint={t("reportsHint")} />
       <div className="chips">
         {(["daily", "items", "cats", "people", "tax", "stock", "ledger"] as const).map((key) => (
           <button key={key} className={`chip ${tab === key ? "on" : ""}`} type="button" onClick={() => setTab(key)}>

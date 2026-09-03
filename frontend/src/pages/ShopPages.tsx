@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { ScanButton } from "../components/BarcodeScanner";
-import { IdentifyForm, SalesAgentSelect } from "../components/ui";
+import { IdentifyForm, PageHeader, SalesAgentSelect } from "../components/ui";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel } from "../money";
@@ -407,7 +407,7 @@ export function ShopCart({
   if (!po || po.lines.length === 0) {
     return (
       <div className="card">
-        <h2>{t("emptyPo")}</h2>
+        <h2 style={{ margin: "4px 0 8px" }}>{t("emptyPo")}</h2>
         <p className="muted">{t("emptyPoHint")}</p>
         <Link className="btn" to="/shop" style={{ display: "inline-block" }}>
           {t("browseShop")}
@@ -418,37 +418,35 @@ export function ShopCart({
 
   return (
     <div className="grid">
-      <div>
-        <div className="sku">{t("purchaseOrder")}</div>
-        <h2 style={{ margin: "4px 0 12px" }}>{po.number}</h2>
-        {shopper ? (
-          <p className="muted">
-            {t("customer")}: {shopper.name} · {shopper.phone}
-          </p>
-        ) : null}
-        <button
-          className="btn ghost"
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            if (!window.confirm(t("confirmEmptyCart"))) return;
-            setBusy(true);
-            setError("");
-            try {
-              const next = await api<PurchaseOrder>("/api/shop/po/abandon", { method: "POST" });
-              setPo(next);
-              setShortages([]);
-              onCartChange();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : t("updateFailed"));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {t("emptyCart")}
-        </button>
-      </div>
+      <PageHeader
+        kicker={t("purchaseOrder")}
+        title={po.number}
+        hint={shopper ? `${t("customer")}: ${shopper.name} · ${shopper.phone}` : undefined}
+        actions={
+          <button
+            className="btn ghost"
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              if (!window.confirm(t("confirmEmptyCart"))) return;
+              setBusy(true);
+              setError("");
+              try {
+                const next = await api<PurchaseOrder>("/api/shop/po/abandon", { method: "POST" });
+                setPo(next);
+                setShortages([]);
+                onCartChange();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : t("updateFailed"));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {t("emptyCart")}
+          </button>
+        }
+      />
       {error && <div className="banner">{error}</div>}
       {po.lines.map((ln) => (
         <div className="card row" key={ln.id} style={{ justifyContent: "space-between" }}>

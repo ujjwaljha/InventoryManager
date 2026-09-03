@@ -1418,6 +1418,15 @@ html.desktop-app .main-pane {
   color: var(--ink-soft);
 }
 
+.more-link {
+  font-weight: 650;
+  padding: 14px 16px;
+}
+
+.more-link:hover {
+  border-color: var(--leaf);
+}
+
 @media print {
   @page {
     size: 2.5in auto;

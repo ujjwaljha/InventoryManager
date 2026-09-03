@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
-import { ItemPicker, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
 import type { CreditReport, DamageNote, Invoice, Item, SupplierReturn } from "../types";
@@ -43,7 +43,7 @@ export function ReceiptsPage() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("lookUpReceipt")}</h2>
+      <PageHeader title={t("lookUpReceipt")} />
       <FinderBar
         q={q}
         onQ={setQ}
@@ -213,8 +213,7 @@ export function CreditPage() {
       ) : null}
       <div className={printFor ? "no-print" : ""}>
       <div>
-        <h2 style={{ margin: 0 }}>{t("credit")}</h2>
-        <p className="muted">{t("creditHint")}</p>
+        <PageHeader title={t("credit")} hint={t("creditHint")} />
       </div>
       <div className="chips">
         <button className={`chip ${filter === "all" ? "on" : ""}`} type="button" onClick={() => setFilter("all")}>
@@ -372,7 +371,7 @@ export function DamagePage() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("recordDamage")}</h2>
+      <PageHeader title={t("recordDamage")} />
       {error && <div className="banner">{error}</div>}
       <div className="card form-grid">
         <label>
@@ -454,7 +453,7 @@ export function ReturnsPage() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("returnToSupplier")}</h2>
+      <PageHeader title={t("returnToSupplier")} />
       {error && <div className="banner">{error}</div>}
       <div className="card form-grid">
         <label>
@@ -520,9 +519,9 @@ export function MorePage() {
   ] as const;
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("moreOffice")}</h2>
+      <PageHeader title={t("moreOffice")} />
       {links.map(([to, label]) => (
-        <Link className="card" key={to} to={to}>
+        <Link className="card more-link" key={to} to={to}>
           {label}
         </Link>
       ))}

@@ -20,28 +20,15 @@ export function OpDashboard() {
   if (!data) return <p className="muted">{t("loading")}</p>;
   return (
     <div className="grid">
-      <PageHeader kicker={t("operator")} title={data.shop_name} />
-      <SharePanel />
-      <div className="row">
-        <Link className="btn" to="/till">
-          {t("till")}
-        </Link>
-        <Link className="btn ghost" to="/restock">
-          {t("restock")}
-        </Link>
-        <Link className="btn ghost" to="/receipts">
-          {t("receipts")}
-        </Link>
-        <Link className="btn ghost" to="/credit">
-          {t("credit")}
-        </Link>
-        <Link className="btn ghost" to="/customers">
-          {t("customerFile")}
-        </Link>
-        <Link className="btn ghost" to="/reports">
-          {t("reports")}
-        </Link>
-      </div>
+      <PageHeader
+        kicker={t("operator")}
+        title={data.shop_name}
+        actions={
+          <Link className="btn" to="/till">
+            {t("till")}
+          </Link>
+        }
+      />
       <div className="row">
         <div className="card kpi">
           {t("skus")}
@@ -117,6 +104,7 @@ export function OpDashboard() {
           ))}
         </section>
       </div>
+      <SharePanel />
     </div>
   );
 }
@@ -268,7 +256,7 @@ export function OpOrders() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("purchaseOrders")}</h2>
+      <PageHeader title={t("purchaseOrders")} />
       <FinderBar
         q={q}
         onQ={setQ}
@@ -323,7 +311,7 @@ export function OpInvoices() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("invoices")}</h2>
+      <PageHeader title={t("invoices")} />
       <FinderBar
         q={q}
         onQ={setQ}

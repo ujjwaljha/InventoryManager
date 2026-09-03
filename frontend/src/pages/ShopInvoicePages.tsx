@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { InvoiceSheet, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice, PurchaseOrder } from "../types";
@@ -42,14 +42,14 @@ export function ShopInvoices() {
   if (rows.length === 0 && orders.length === 0) {
     return (
       <div className="card">
-        <h2>{t("noInvoices")}</h2>
+        <h2 style={{ margin: "4px 0 8px" }}>{t("noInvoices")}</h2>
         <p className="muted">{t("noInvoicesHint")}</p>
       </div>
     );
   }
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("yourInvoices")}</h2>
+      <PageHeader title={t("yourInvoices")} />
       <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchOrders")} />
       {shownInv.length === 0 && <p className="muted">{t("noInvoices")}</p>}
       {shownInv.map((inv) => (
