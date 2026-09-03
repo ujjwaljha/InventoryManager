@@ -1,9 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, update
+from sqlalchemy import delete as sql_delete, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db, raise_checkout
-from app.models import Category, Item, Location, StockLot, StockMovement
+from app.models import (
+    Category,
+    DamageLine,
+    Item,
+    Location,
+    LotConsumption,
+    PurchaseOrderLine,
+    RestockLine,
+    StockLot,
+    StockMovement,
+    SupplierReturnLine,
+)
 from app.qty import from_store, to_store
 from app.schemas import CategoryIn, ItemIn, ItemPatch, LocationIn, MovementIn
 from app.serialize import item_out, movement_out
@@ -24,6 +35,45 @@ def _item_matches(item: Item, needle: str) -> bool:
         item.notes or "",
     )
     return any(needle in (field or "").lower() for field in fields)
+
+
+def _item_in_use(db: Session, item_id: int) -> bool:
+    for model in (PurchaseOrderLine, RestockLine, DamageLine, SupplierReturnLine):
+        if db.scalar(select(model.id).where(model.item_id == item_id).limit(1)):
+            return True
+    linked_move = db.scalar(
+        select(StockMovement.id)
+        .where(
+            StockMovement.item_id == item_id,
+            or_(
+                StockMovement.purchase_order_id.is_not(None),
+                StockMovement.invoice_id.is_not(None),
+                StockMovement.restock_id.is_not(None),
+                StockMovement.damage_id.is_not(None),
+                StockMovement.supplier_return_id.is_not(None),
+            ),
+        )
+        .limit(1)
+    )
+    if linked_move:
+        return True
+    linked_lot = db.scalar(
+        select(StockLot.id).where(StockLot.item_id == item_id, StockLot.restock_id.is_not(None)).limit(1)
+    )
+    return linked_lot is not None
+
+
+def _purge_item_stock(db: Session, item_id: int) -> None:
+    lot_ids = list(db.execute(select(StockLot.id).where(StockLot.item_id == item_id)).scalars())
+    move_ids = list(db.execute(select(StockMovement.id).where(StockMovement.item_id == item_id)).scalars())
+    if lot_ids:
+        db.execute(sql_delete(LotConsumption).where(LotConsumption.lot_id.in_(lot_ids)))
+    if move_ids:
+        db.execute(sql_delete(LotConsumption).where(LotConsumption.movement_id.in_(move_ids)))
+    if lot_ids:
+        db.execute(sql_delete(StockLot).where(StockLot.id.in_(lot_ids)))
+    if move_ids:
+        db.execute(sql_delete(StockMovement).where(StockMovement.id.in_(move_ids)))
 
 
 @router.get("/categories")
@@ -241,6 +291,10 @@ def patch_item(item_id: int, body: ItemPatch, db: Session = Depends(get_db)):
         if clash:
             raise HTTPException(status_code=409, detail="SKU already exists")
         data["sku"] = data["sku"].strip()
+    if "name" in data and data["name"] is not None:
+        data["name"] = data["name"].strip()
+    if "unit" in data and data["unit"] is not None:
+        data["unit"] = (data["unit"] or "").strip() or "ea"
     if "reorder_point" in data and data["reorder_point"] is not None:
         data["reorder_point"] = to_store(data["reorder_point"])
     for key, value in data.items():
@@ -255,15 +309,34 @@ def patch_item(item_id: int, body: ItemPatch, db: Session = Depends(get_db)):
     return item_out(item)
 
 
+def _archive_item_row(item: Item) -> None:
+    item.archived = 1
+    item.updated_at = utcnow()
+
+
 @router.post("/items/{item_id}/archive")
 def archive_item(item_id: int, db: Session = Depends(get_db)):
     item = db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    item.archived = 1
-    item.updated_at = utcnow()
+    _archive_item_row(item)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "archived": True, "deleted": False}
+
+
+@router.delete("/items/{item_id}")
+def delete_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if _item_in_use(db, item_id):
+        _archive_item_row(item)
+        db.commit()
+        return {"ok": True, "archived": True, "deleted": False}
+    _purge_item_stock(db, item_id)
+    db.delete(item)
+    db.commit()
+    return {"ok": True, "deleted": True, "archived": False}
 
 
 @router.post("/items/{item_id}/movements")
