@@ -339,7 +339,9 @@ function DesktopHotkeys() {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (!document.documentElement.classList.contains("desktop-app")) return;
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const comma = event.key === "," || event.code === "Comma";
+      if (event.shiftKey && !comma) return;
       const target = event.target as HTMLElement | null;
       const typing =
         target &&
@@ -354,13 +356,13 @@ function DesktopHotkeys() {
       } else if (event.key === "2") {
         event.preventDefault();
         navigate("/shop");
-      } else if (event.key === ",") {
+      } else if (comma) {
         event.preventDefault();
         navigate("/settings");
       }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [navigate]);
   return null;
 }
