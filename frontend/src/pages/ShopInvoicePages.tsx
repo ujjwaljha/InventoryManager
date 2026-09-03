@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, StatusTag, ThermalReceipt } from "../components/ui";
+import { InvoiceSheet, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice, PurchaseOrder } from "../types";
@@ -81,6 +81,7 @@ export function ShopInvoiceDetail() {
         <button className="btn ghost" onClick={() => window.print()}>
           {t("printThermal")}
         </button>
+        <ShareReceiptButton invoice={invoice} />
         {invoice.status === "issued" && (
           <>
             <button
