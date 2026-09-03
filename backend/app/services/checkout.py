@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -543,6 +543,36 @@ def mark_unpaid(db: Session, invoice: Invoice) -> Invoice:
     db.flush()
     db.expire(invoice, ["payments"])
     return invoice
+
+
+def shopper_public(shopper: Shopper) -> dict:
+    return {"id": shopper.id, "name": shopper.name, "phone": shopper.phone, "email": shopper.email}
+
+
+def search_shoppers(db: Session, q: str | None = None, limit: int = 80) -> list[Shopper]:
+    last_sale = (
+        select(Invoice.shopper_id, func.max(Invoice.issued_at).label("last_at"))
+        .where(Invoice.status.in_(("issued", "paid")))
+        .group_by(Invoice.shopper_id)
+        .subquery()
+    )
+    stmt = (
+        select(Shopper)
+        .outerjoin(last_sale, Shopper.id == last_sale.c.shopper_id)
+        .order_by(func.coalesce(last_sale.c.last_at, "").desc(), Shopper.name)
+    )
+    needle = (q or "").strip()
+    if needle:
+        safe = needle.replace("%", "").replace("_", "")
+        digits = "".join(ch for ch in needle if ch.isdigit())
+        clauses = []
+        if safe:
+            clauses.append(Shopper.name.ilike(f"%{safe}%"))
+        if digits:
+            clauses.append(Shopper.phone.contains(digits))
+        if clauses:
+            stmt = stmt.where(or_(*clauses))
+    return list(db.execute(stmt.limit(limit)).scalars())
 
 
 def upsert_shopper(db: Session, name: str, phone: str, email: str = "") -> Shopper:

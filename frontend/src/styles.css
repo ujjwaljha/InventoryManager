@@ -404,6 +404,40 @@ textarea {
   border-color: var(--forest);
 }
 
+.customer-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.customer-filter {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  max-width: 420px;
+}
+
+.customer-filter select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: white;
+}
+
+button.linkish {
+  background: none;
+  border: none;
+  color: var(--forest);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
 .bottom-nav {
   position: fixed;
   left: 0;

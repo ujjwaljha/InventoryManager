@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db
-from app.models import Invoice, InvoicePayment, Item, StockMovement
+from app.models import Invoice, InvoicePayment, Item, Shopper, StockMovement
 from app.qty import from_store, money_qty
 from app.serialize import invoice_out, item_out, movement_out
 from app.services import checkout as chk
@@ -22,24 +22,25 @@ def _margin_bps(profit: int, revenue: int) -> int:
     return int(round(profit * 10000 / revenue))
 
 
-def _active_invoices(db: Session, start: str, end: str) -> list[Invoice]:
-    return list(
-        db.execute(
-            select(Invoice)
-            .options(
-                selectinload(Invoice.lines),
-                selectinload(Invoice.shopper),
-                selectinload(Invoice.purchase_order),
-                selectinload(Invoice.payments),
-            )
-            .where(
-                Invoice.status.in_(("issued", "paid")),
-                Invoice.issued_at >= start,
-                Invoice.issued_at < end,
-            )
-            .order_by(Invoice.issued_at.asc())
-        ).scalars()
+def _active_invoices(db: Session, start: str, end: str, shopper_id: int | None = None) -> list[Invoice]:
+    stmt = (
+        select(Invoice)
+        .options(
+            selectinload(Invoice.lines),
+            selectinload(Invoice.shopper),
+            selectinload(Invoice.purchase_order),
+            selectinload(Invoice.payments),
+        )
+        .where(
+            Invoice.status.in_(("issued", "paid")),
+            Invoice.issued_at >= start,
+            Invoice.issued_at < end,
+        )
+        .order_by(Invoice.issued_at.asc())
     )
+    if shopper_id is not None:
+        stmt = stmt.where(Invoice.shopper_id == shopper_id)
+    return list(db.execute(stmt).scalars())
 
 
 def _sku_meta(db: Session, skus: set[str]) -> dict[str, Item]:
@@ -87,24 +88,15 @@ def stock_report(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/daily")
-def daily_sales(date: str | None = Query(default=None), db: Session = Depends(get_db)):
-    settings = get_settings(db)
-    day = date or today_shop()
-    start, end = shop_day_bounds(day)
-    invoices = _active_invoices(db, start, end)
-    return _sales_bundle(db, settings, invoices, date_from=day, date_to=day, start=start, end=end)
-
-
-@router.get("/pnl")
-def item_pnl(
-    date_from: str | None = Query(default=None),
-    date_to: str | None = Query(default=None),
-    db: Session = Depends(get_db),
-):
+def _pnl_for_range(
+    db: Session,
+    date_from: str | None,
+    date_to: str | None,
+    shopper_id: int | None = None,
+) -> dict:
     settings = get_settings(db)
     start, end = range_bounds(date_from, date_to)
-    invoices = _active_invoices(db, start, end)
+    invoices = _active_invoices(db, start, end, shopper_id)
     return _sales_bundle(
         db,
         settings,
@@ -113,21 +105,57 @@ def item_pnl(
         date_to=date_to or today_shop(),
         start=start,
         end=end,
+        shopper_id=shopper_id,
     )
+
+
+@router.get("/daily")
+def daily_sales(
+    date: str | None = Query(default=None),
+    shopper_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = get_settings(db)
+    day = date or today_shop()
+    start, end = shop_day_bounds(day)
+    invoices = _active_invoices(db, start, end, shopper_id)
+    return _sales_bundle(
+        db,
+        settings,
+        invoices,
+        date_from=day,
+        date_to=day,
+        start=start,
+        end=end,
+        shopper_id=shopper_id,
+    )
+
+
+@router.get("/pnl")
+def item_pnl(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    shopper_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return _pnl_for_range(db, date_from, date_to, shopper_id)
 
 
 @router.get("/categories")
 def category_report(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    shopper_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    bundle = item_pnl(date_from, date_to, db)
+    bundle = _pnl_for_range(db, date_from, date_to, shopper_id)
     return {
         "date_from": bundle["date_from"],
         "date_to": bundle["date_to"],
         "currency_symbol": bundle["currency_symbol"],
         "currency_code": "IDR",
+        "shopper_id": bundle.get("shopper_id"),
+        "shopper": bundle.get("shopper"),
         "revenue_cents": bundle["revenue_cents"],
         "cogs_cents": bundle["cogs_cents"],
         "profit_cents": bundle["profit_cents"],
@@ -194,32 +222,36 @@ def _purpose_cogs(db: Session, start: str, end: str, purpose: str) -> int:
     )
 
 
-def _collected_payments(db: Session, start: str, end: str) -> tuple[int, int]:
-    total = db.scalar(
-        select(func.coalesce(func.sum(InvoicePayment.amount_cents), 0)).where(
-            InvoicePayment.created_at >= start,
-            InvoicePayment.created_at < end,
-        )
-    )
-    count = db.scalar(
-        select(func.count())
-        .select_from(InvoicePayment)
-        .where(InvoicePayment.created_at >= start, InvoicePayment.created_at < end)
-    )
-    return int(total or 0), int(count or 0)
+def _collected_payments(
+    db: Session, start: str, end: str, shopper_id: int | None = None
+) -> tuple[int, int]:
+    filters = [
+        InvoicePayment.created_at >= start,
+        InvoicePayment.created_at < end,
+    ]
+    sum_stmt = select(func.coalesce(func.sum(InvoicePayment.amount_cents), 0))
+    count_stmt = select(func.count()).select_from(InvoicePayment)
+    if shopper_id is not None:
+        join_on = Invoice.id == InvoicePayment.invoice_id
+        shopper_filters = [*filters, Invoice.shopper_id == shopper_id, Invoice.status != "void"]
+        sum_stmt = sum_stmt.join(Invoice, join_on).where(*shopper_filters)
+        count_stmt = count_stmt.join(Invoice, join_on).where(*shopper_filters)
+    else:
+        sum_stmt = sum_stmt.where(*filters)
+        count_stmt = count_stmt.where(*filters)
+    return int(db.scalar(sum_stmt) or 0), int(db.scalar(count_stmt) or 0)
 
 
-def _voided_invoices(db: Session, start: str, end: str) -> list[Invoice]:
-    return list(
-        db.execute(
-            select(Invoice).where(
-                Invoice.status == "void",
-                Invoice.voided_at.is_not(None),
-                Invoice.voided_at >= start,
-                Invoice.voided_at < end,
-            )
-        ).scalars()
+def _voided_invoices(db: Session, start: str, end: str, shopper_id: int | None = None) -> list[Invoice]:
+    stmt = select(Invoice).where(
+        Invoice.status == "void",
+        Invoice.voided_at.is_not(None),
+        Invoice.voided_at >= start,
+        Invoice.voided_at < end,
     )
+    if shopper_id is not None:
+        stmt = stmt.where(Invoice.shopper_id == shopper_id)
+    return list(db.execute(stmt).scalars())
 
 
 def _collected_invoices(db: Session, start: str, end: str) -> list[Invoice]:
@@ -243,6 +275,15 @@ def _collected_invoices(db: Session, start: str, end: str) -> list[Invoice]:
     )
 
 
+def _shopper_out(db: Session, shopper_id: int | None) -> dict | None:
+    if shopper_id is None:
+        return None
+    shopper = db.get(Shopper, shopper_id)
+    if shopper is None:
+        return None
+    return {"id": shopper.id, "name": shopper.name, "phone": shopper.phone, "email": shopper.email}
+
+
 def _sales_bundle(
     db: Session,
     settings,
@@ -251,6 +292,7 @@ def _sales_bundle(
     date_to: str,
     start: str,
     end: str,
+    shopper_id: int | None = None,
 ) -> dict:
     item_acc: dict[str, dict] = defaultdict(
         lambda: {
@@ -321,12 +363,13 @@ def _sales_bundle(
             row["revenue_cents"] += ln.line_total_cents
             row["cogs_cents"] += ln.cogs_cents or 0
 
-    for sku, cents, name, name_id in _writeoffs_by_sku(db, start, end):
-        row = item_acc[sku]
-        row["sku"] = sku
-        row["name"] = row["name"] or name
-        row["name_id"] = row["name_id"] or name_id
-        row["writeoff_cents"] += cents
+    if shopper_id is None:
+        for sku, cents, name, name_id in _writeoffs_by_sku(db, start, end):
+            row = item_acc[sku]
+            row["sku"] = sku
+            row["name"] = row["name"] or name
+            row["name_id"] = row["name_id"] or name_id
+            row["writeoff_cents"] += cents
 
     meta = _sku_meta(db, set(item_acc))
     items = []
@@ -380,15 +423,18 @@ def _sales_bundle(
         cat["adjusted_margin_bps"] = _margin_bps(profit - writeoff, cat["revenue_cents"])
         categories.append(cat)
 
-    pay_rows = list(
-        db.execute(
-            select(InvoicePayment)
-            .options(
-                selectinload(InvoicePayment.invoice).selectinload(Invoice.shopper),
-            )
-            .where(InvoicePayment.created_at >= start, InvoicePayment.created_at < end)
-        ).scalars()
+    pay_stmt = (
+        select(InvoicePayment)
+        .options(
+            selectinload(InvoicePayment.invoice).selectinload(Invoice.shopper),
+        )
+        .where(InvoicePayment.created_at >= start, InvoicePayment.created_at < end)
     )
+    if shopper_id is not None:
+        pay_stmt = pay_stmt.join(Invoice, Invoice.id == InvoicePayment.invoice_id).where(
+            Invoice.shopper_id == shopper_id
+        )
+    pay_rows = list(db.execute(pay_stmt).scalars())
     for pay in pay_rows:
         inv = pay.invoice
         if inv is None or inv.status == "void":
@@ -417,15 +463,21 @@ def _sales_bundle(
         return out
 
     profit = revenue - cogs
-    collected_cents, collected_count = _collected_payments(db, start, end)
-    damage = _purpose_cogs(db, start, end, "damage")
-    supplier_return = _purpose_cogs(db, start, end, "supplier_return")
+    collected_cents, collected_count = _collected_payments(db, start, end, shopper_id)
+    if shopper_id is None:
+        damage = _purpose_cogs(db, start, end, "damage")
+        supplier_return = _purpose_cogs(db, start, end, "supplier_return")
+    else:
+        damage = 0
+        supplier_return = 0
     writeoffs = damage + supplier_return
-    voided = _voided_invoices(db, start, end)
+    voided = _voided_invoices(db, start, end, shopper_id)
     adjusted = profit - writeoffs
     return {
         "date_from": date_from,
         "date_to": date_to,
+        "shopper_id": shopper_id,
+        "shopper": _shopper_out(db, shopper_id),
         "currency_symbol": settings.currency_symbol or "Rp",
         "currency_code": "IDR",
         "receipt_count": len(invoices),

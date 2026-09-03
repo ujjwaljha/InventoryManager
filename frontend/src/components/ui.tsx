@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel, when, whenFull } from "../money";
-import type { Invoice, Item, Settings } from "../types";
+import type { Invoice, Item, Settings, Shopper } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
   const { t, pick, locale } = useI18n();
@@ -390,27 +390,28 @@ export function IdentifyForm({
   onCancel?: () => void;
 }) {
   const { t } = useI18n();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   return (
     <form
       className="card form-grid"
       onSubmit={(e) => {
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        onDone(String(fd.get("name") || ""), String(fd.get("phone") || ""));
+        onDone(name, phone);
       }}
     >
       <h3 style={{ margin: 0 }}>{t("whoShopping")}</h3>
       <p className="muted" style={{ margin: 0 }}>
         {t("whoShoppingHint")}
       </p>
-      <label>
-        {t("name")}
-        <input name="name" required placeholder={t("yourName")} autoComplete="name" />
-      </label>
-      <label>
-        {t("phone")}
-        <input name="phone" required placeholder={t("mobileNumber")} inputMode="tel" autoComplete="tel" />
-      </label>
+      <CustomerPicker
+        name={name}
+        phone={phone}
+        onName={setName}
+        onPhone={setPhone}
+        endpoint="/api/shop/customers"
+        onPick={(c) => onDone(c.name, c.phone)}
+      />
       <div className="row">
         <button className="btn" type="submit" disabled={pending}>
           {t("continue")}
@@ -422,6 +423,115 @@ export function IdentifyForm({
         ) : null}
       </div>
     </form>
+  );
+}
+
+export function CustomerPicker({
+  name,
+  phone,
+  onName,
+  onPhone,
+  onPick,
+  endpoint = "/api/shoppers",
+  required = true,
+}: {
+  name: string;
+  phone: string;
+  onName: (v: string) => void;
+  onPhone: (v: string) => void;
+  onPick?: (c: Shopper) => void;
+  endpoint?: string;
+  required?: boolean;
+}) {
+  const { t } = useI18n();
+  const [q, setQ] = useState("");
+  const [matches, setMatches] = useState<Shopper[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const tmr = window.setTimeout(() => {
+      const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+      api<Shopper[]>(`${endpoint}${qs}`)
+        .then((rows) => {
+          setMatches(rows);
+          setLoaded(true);
+        })
+        .catch(() => {
+          setMatches([]);
+          setLoaded(true);
+        });
+    }, 150);
+    return () => window.clearTimeout(tmr);
+  }, [q, endpoint]);
+
+  useEffect(() => {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 8 || name.trim()) return;
+    const hit = matches.find((s) => s.phone.replace(/\D/g, "") === digits);
+    if (hit) onName(hit.name);
+  }, [phone, matches, name, onName]);
+
+  function pick(c: Shopper) {
+    onName(c.name);
+    onPhone(c.phone);
+    setQ("");
+    onPick?.(c);
+  }
+
+  const shown = matches.slice(0, 8);
+
+  return (
+    <>
+      <label>
+        {t("returningCustomers")}
+        <input
+          className="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("pickReturningCustomer")}
+          autoComplete="off"
+        />
+      </label>
+      {shown.length > 0 ? (
+        <div className="customer-matches" role="listbox" aria-label={t("savedCustomers")}>
+          {shown.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`chip${c.phone === phone.replace(/\D/g, "") || c.phone === phone ? " on" : ""}`}
+              onClick={() => pick(c)}
+            >
+              {c.name} · {c.phone}
+            </button>
+          ))}
+        </div>
+      ) : loaded ? (
+        <p className="muted" style={{ margin: 0 }}>
+          {t("noCustomersYet")}
+        </p>
+      ) : null}
+      <label>
+        {t("name")}
+        <input
+          required={required}
+          value={name}
+          onChange={(e) => onName(e.target.value)}
+          placeholder={t("yourName")}
+          autoComplete="name"
+        />
+      </label>
+      <label>
+        {t("phone")}
+        <input
+          required={required}
+          value={phone}
+          onChange={(e) => onPhone(e.target.value)}
+          placeholder={t("mobileNumber")}
+          inputMode="tel"
+          autoComplete="tel"
+        />
+      </label>
+    </>
   );
 }
 

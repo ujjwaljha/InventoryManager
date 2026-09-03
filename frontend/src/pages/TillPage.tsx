@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/CartPane";
-import { ItemPicker } from "../components/ui";
+import { CustomerPicker, ItemPicker } from "../components/ui";
 import { useI18n } from "../i18n";
 import { formatQty, money, nudgeQty, qtyMoney } from "../money";
 import type { Item, Shortage } from "../types";
@@ -180,14 +180,7 @@ export function TillPage() {
             placeholder={t("salespersonPlaceholder")}
           />
         </label>
-        <label>
-          {t("customer")}
-          <input required value={customer} onChange={(e) => setCustomer(e.target.value)} />
-        </label>
-        <label>
-          {t("customerPhone")}
-          <input required value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-        </label>
+        <CustomerPicker name={customer} phone={phone} onName={setCustomer} onPhone={setPhone} />
         <p className="muted">{t("tillKeepsCart")}</p>
         <ItemPicker onAdd={(item, qty) => add(item, qty)} />
         <div className="price">{t("total")} {money(total)}</div>

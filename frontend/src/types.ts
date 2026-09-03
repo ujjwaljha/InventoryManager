@@ -325,7 +325,9 @@ export type SalesReport = {
   items: ReportItem[];
   categories: ReportCategory[];
   salespeople?: ReportPerson[];
-  customers?: ReportPerson[];
+    customers?: ReportPerson[];
+    shopper_id?: number | null;
+    shopper?: { id: number; name: string; phone: string; email?: string } | null;
 };
 
 export type AgingBuckets = {

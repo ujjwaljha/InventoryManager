@@ -77,7 +77,7 @@ def clear_pin(db: Session, current_pin: str) -> ShopSettings:
 
 def _is_public(request: Request) -> bool:
     path = request.url.path.rstrip("/") or "/"
-    if path.startswith("/api/shop"):
+    if path == "/api/shop" or path.startswith("/api/shop/"):
         return True
     if path in _PUBLIC_EXACT:
         return request.method in ("GET", "HEAD", "OPTIONS") or path == "/api/operator/unlock"

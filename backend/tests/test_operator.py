@@ -16,6 +16,8 @@ def test_pin_locks_backup_not_shop(tmp_path: Path):
     assert locked.get("/api/backup").status_code == 401
     assert locked.get("/api/dashboard").status_code == 401
     assert locked.get("/api/shop/catalog").status_code == 200
+    assert locked.get("/api/shop/customers").status_code == 200
+    assert locked.get("/api/shoppers").status_code == 401
     assert locked.get("/api/settings").status_code == 200
     assert locked.get("/api/health").status_code == 200
     wrong = locked.post("/api/operator/unlock", json={"pin": "0000"})

@@ -32,9 +32,8 @@ def _load_orders(db: Session, status: str | None):
 
 
 @router.get("/shoppers")
-def list_shoppers(db: Session = Depends(get_db)):
-    rows = db.execute(select(Shopper).order_by(Shopper.name)).scalars()
-    return [{"id": s.id, "name": s.name, "phone": s.phone, "email": s.email} for s in rows]
+def list_shoppers(q: str | None = Query(default=None), db: Session = Depends(get_db)):
+    return [chk.shopper_public(s) for s in chk.search_shoppers(db, q)]
 
 
 @router.get("/orders")
