@@ -25,6 +25,11 @@ def create_session(body: SessionIn, request: Request, db: Session = Depends(get_
     return {"id": shopper.id, "name": shopper.name, "phone": shopper.phone, "email": shopper.email}
 
 
+@router.get("/customers")
+def shop_customers(q: str | None = Query(default=None), db: Session = Depends(get_db)):
+    return [chk.shopper_public(s) for s in chk.search_shoppers(db, q)]
+
+
 @router.get("/me")
 def me(request: Request, db: Session = Depends(get_db)):
     sid = request.session.get("shopper_id")

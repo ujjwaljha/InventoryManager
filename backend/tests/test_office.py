@@ -637,6 +637,88 @@ def test_people_report_includes_collected(client: TestClient):
     assert cust["collected_cents"] == sale.json()["total_cents"]
 
 
+def test_returning_customer_reuse_and_report_filter(client: TestClient):
+    nails = _item(client, "NAL-1")
+    cement = _item(client, "CEM-50")
+    first = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Pak Joko",
+            "customer_phone": "081300000222",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": True,
+        },
+    )
+    second = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Joko Wijaya",
+            "customer_phone": "081300000222",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": True,
+        },
+    )
+    other = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Rina",
+            "customer_name": "Bu Sari",
+            "customer_phone": "081300000333",
+            "lines": [{"item_id": cement["id"], "quantity": 1}],
+            "paid": True,
+        },
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert other.status_code == 200, other.text
+    assert first.json()["shopper_id"] == second.json()["shopper_id"]
+    assert other.json()["shopper_id"] != first.json()["shopper_id"]
+
+    shoppers = client.get("/api/shoppers").json()
+    joko = next(s for s in shoppers if s["phone"] == "081300000222")
+    sari = next(s for s in shoppers if s["phone"] == "081300000333")
+    assert joko["name"] == "Joko Wijaya"
+    assert joko["id"] == first.json()["shopper_id"]
+    assert sari["id"] == other.json()["shopper_id"]
+
+    by_name = client.get("/api/shoppers", params={"q": "joko"}).json()
+    assert any(s["id"] == joko["id"] for s in by_name)
+    by_phone = client.get("/api/shoppers", params={"q": "000222"}).json()
+    assert any(s["id"] == joko["id"] for s in by_phone)
+    shop_list = client.get("/api/shop/customers", params={"q": "081300000222"}).json()
+    assert any(s["id"] == joko["id"] for s in shop_list)
+
+    dmg = client.post(
+        "/api/damage",
+        json={"reason": "Broken bags", "lines": [{"item_id": cement["id"], "quantity": 1}]},
+    )
+    assert dmg.status_code == 200, dmg.text
+
+    shopwide = client.get("/api/reports/pnl").json()
+    assert shopwide["writeoff_cents"] > 0
+    assert shopwide["revenue_cents"] == first.json()["total_cents"] + second.json()["total_cents"] + other.json()["total_cents"]
+
+    pnl = client.get("/api/reports/pnl", params={"shopper_id": joko["id"]}).json()
+    assert pnl["shopper_id"] == joko["id"]
+    assert pnl["shopper"]["name"] == "Joko Wijaya"
+    assert pnl["shopper"]["phone"] == "081300000222"
+    assert len(pnl["receipts"]) == 2
+    assert all(r["shopper_id"] == joko["id"] for r in pnl["receipts"])
+    assert pnl["revenue_cents"] == first.json()["total_cents"] + second.json()["total_cents"]
+    assert pnl["writeoff_cents"] == 0
+    assert pnl["collected_cents"] == pnl["revenue_cents"]
+
+    cats = client.get("/api/reports/categories", params={"shopper_id": joko["id"]}).json()
+    assert cats["revenue_cents"] == pnl["revenue_cents"]
+    daily = client.get("/api/reports/daily", params={"shopper_id": joko["id"]}).json()
+    assert daily["revenue_cents"] == pnl["revenue_cents"]
+    sari_pnl = client.get("/api/reports/pnl", params={"shopper_id": sari["id"]}).json()
+    assert sari_pnl["revenue_cents"] == other.json()["total_cents"]
+    assert sari_pnl["writeoff_cents"] == 0
+
+
 def test_item_create_update_and_delete(client: TestClient):
     created = client.post(
         "/api/items",

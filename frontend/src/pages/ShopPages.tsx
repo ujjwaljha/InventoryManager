@@ -4,14 +4,16 @@ import { api, ApiError } from "../api";
 import { IdentifyForm } from "../components/ui";
 import { useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel } from "../money";
-import type { Item, PurchaseOrder, Shopper, Shortage } from "../types";
+import type { Item, PoLine, PurchaseOrder, Shopper, Shortage } from "../types";
 
 function flyAddToOrder(from: HTMLElement, label: string) {
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const origin = from.getBoundingClientRect();
-  const dest = [...document.querySelectorAll<HTMLElement>("[data-order-target]")].find(
-    (el) => el.getClientRects().length > 0,
-  );
+  const dest =
+    [...document.querySelectorAll<HTMLElement>("[data-cart-pane-target]")].find(
+      (el) => el.getClientRects().length > 0,
+    ) ||
+    [...document.querySelectorAll<HTMLElement>("[data-order-target]")].find((el) => el.getClientRects().length > 0);
   const startX = origin.left + origin.width / 2;
   const startY = origin.top + origin.height / 2;
   let endX = window.innerWidth / 2;
@@ -36,10 +38,12 @@ export function ShopHome({
   shopper,
   onIdentified,
   onCartChange,
+  cartLines,
 }: {
   shopper: Shopper | null;
   onIdentified: (s: Shopper) => void;
   onCartChange: () => void;
+  cartLines?: PoLine[];
 }) {
   const { t, pick, locale } = useI18n();
   const [items, setItems] = useState<Item[]>([]);
@@ -67,14 +71,10 @@ export function ShopHome({
       skipNextCartLoad.current = false;
       return;
     }
-    api<PurchaseOrder>("/api/shop/po")
-      .then((po) => {
-        const next: Record<number, number> = {};
-        for (const ln of po.lines) next[ln.item_id] = ln.quantity;
-        setInCart(next);
-      })
-      .catch(() => undefined);
-  }, [shopper]);
+    const next: Record<number, number> = {};
+    for (const ln of cartLines || []) next[ln.item_id] = ln.quantity;
+    setInCart(next);
+  }, [shopper, cartLines]);
 
   useEffect(() => {
     return () => {
@@ -244,10 +244,12 @@ export function ShopCart({
   shopper,
   onIdentified,
   onCartChange,
+  cartRev = 0,
 }: {
   shopper: Shopper | null;
   onIdentified: (s: Shopper) => void;
   onCartChange: () => void;
+  cartRev?: number;
 }) {
   const { t, pick, locale } = useI18n();
   const [po, setPo] = useState<PurchaseOrder | null>(null);
@@ -275,7 +277,7 @@ export function ShopCart({
 
   useEffect(() => {
     if (shopper) load().catch((e) => setError(e.message));
-  }, [shopper]);
+  }, [shopper, cartRev]);
 
   async function setQty(itemId: number, quantity: number) {
     setError("");

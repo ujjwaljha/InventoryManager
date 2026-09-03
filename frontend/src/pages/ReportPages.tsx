@@ -4,7 +4,7 @@ import { api } from "../api";
 import { StatusTag } from "../components/ui";
 import { useI18n } from "../i18n";
 import { formatQty, marginPct, money, monthStart, todayInput, unitLabel, weekStartMonday } from "../money";
-import type { Movement, ReportPerson, SalesReport, Settings, StockReport } from "../types";
+import type { Movement, ReportPerson, SalesReport, Settings, Shopper, StockReport } from "../types";
 
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
@@ -94,6 +94,8 @@ export function ReportsPage() {
   const [stock, setStock] = useState<StockReport | null>(null);
   const [ledger, setLedger] = useState<Movement[]>([]);
   const [error, setError] = useState("");
+  const [shopperId, setShopperId] = useState<number | "">("");
+  const [shoppers, setShoppers] = useState<Shopper[]>([]);
 
   useEffect(() => {
     api<Settings>("/api/settings")
@@ -111,10 +113,18 @@ export function ReportsPage() {
       });
   }, []);
 
+  useEffect(() => {
+    api<Shopper[]>("/api/shoppers")
+      .then(setShoppers)
+      .catch(() => undefined);
+  }, []);
+
   async function loadSales(dateFrom = from, dateTo = to) {
     setError("");
-    const q = `date_from=${dateFrom}&date_to=${dateTo}`;
+    const q = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (shopperId !== "") q.set("shopper_id", String(shopperId));
     setSales(await api<SalesReport>(`/api/reports/pnl?${q}`));
+    api<Shopper[]>("/api/shoppers").then(setShoppers).catch(() => undefined);
   }
 
   async function load() {
@@ -135,15 +145,16 @@ export function ReportsPage() {
 
   useEffect(() => {
     load();
-  }, [tab, from, to, purpose]);
+  }, [tab, from, to, purpose, shopperId]);
 
   function exportCurrent() {
     if (!sales || tab === "stock" || tab === "ledger") return;
     const moneyCols = [t("revenue"), t("cogs"), t("profit"), t("margin")];
     const writeoffCols = [t("writeoffs"), t("adjustedProfit")];
+    const cust = shopperId === "" ? "" : `-c${shopperId}`;
     if (tab === "cats") {
       downloadCsv(
-        `report-categories-${from}-${to}.csv`,
+        `report-categories-${from}-${to}${cust}.csv`,
         [t("category"), t("qtySold"), ...moneyCols, ...writeoffCols],
         sales.categories.map((r) => [
           pick(r.name, r.name_id),
@@ -160,7 +171,7 @@ export function ReportsPage() {
     }
     if (tab === "tax") {
       downloadCsv(
-        `report-tax-${from}-${to}.csv`,
+        `report-tax-${from}-${to}${cust}.csv`,
         [t("receipts"), t("customer"), t("phone"), t("subtotal"), t("tax"), t("total")],
         sales.receipts.map((inv) => [inv.number, inv.shopper_name, inv.shopper_phone, inv.subtotal_cents, inv.tax_cents, inv.total_cents]),
       );
@@ -168,19 +179,19 @@ export function ReportsPage() {
     }
     if (tab === "people") {
       downloadCsv(
-        `report-salespeople-${from}-${to}.csv`,
+        `report-salespeople-${from}-${to}${cust}.csv`,
         [t("salesperson"), t("receipts"), ...moneyCols, t("collected")],
         (sales.salespeople || []).map((r) => [r.name || t("unnamedStaff"), r.receipt_count, r.revenue_cents, r.cogs_cents, r.profit_cents, marginPct(r.margin_bps), r.collected_cents ?? 0]),
       );
       downloadCsv(
-        `report-customers-${from}-${to}.csv`,
+        `report-customers-${from}-${to}${cust}.csv`,
         [t("customer"), t("phone"), t("receipts"), ...moneyCols, t("collected")],
         (sales.customers || []).map((r) => [r.name || t("unnamedStaff"), r.phone || "", r.receipt_count, r.revenue_cents, r.cogs_cents, r.profit_cents, marginPct(r.margin_bps), r.collected_cents ?? 0]),
       );
       return;
     }
     downloadCsv(
-      `report-items-${from}-${to}.csv`,
+      `report-items-${from}-${to}${cust}.csv`,
       [t("item"), t("category"), t("qtySold"), ...moneyCols, ...writeoffCols],
       sales.items.map((r) => [
         pick(r.name, r.name_id),
@@ -225,18 +236,43 @@ export function ReportsPage() {
         ))}
       </div>
       {tab !== "stock" && (
-        <DateRange
-          from={from}
-          to={to}
-          shopToday={shopToday}
-          onFrom={setFrom}
-          onTo={setTo}
-          onPreset={(nextFrom, nextTo) => {
-            setFrom(nextFrom);
-            setTo(nextTo);
-          }}
-          onLoad={load}
-        />
+        <>
+          <DateRange
+            from={from}
+            to={to}
+            shopToday={shopToday}
+            onFrom={setFrom}
+            onTo={setTo}
+            onPreset={(nextFrom, nextTo) => {
+              setFrom(nextFrom);
+              setTo(nextTo);
+            }}
+            onLoad={load}
+          />
+          <label className="customer-filter">
+            {t("customerReport")}
+            <select
+              value={shopperId === "" ? "" : String(shopperId)}
+              onChange={(e) => setShopperId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">{t("allCustomers")}</option>
+              {shoppers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} · {s.phone}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">{t("customerFilterHint")}</p>
+          {sales?.shopper ? (
+            <p>
+              <b>{t("customerReport")}:</b> {sales.shopper.name} · {sales.shopper.phone}{" "}
+              <button className="linkish" type="button" onClick={() => setShopperId("")}>
+                {t("allCustomers")}
+              </button>
+            </p>
+          ) : null}
+        </>
       )}
       {error && <div className="banner">{error}</div>}
       {tab !== "stock" && tab !== "ledger" && sales && (
@@ -440,7 +476,16 @@ export function ReportsPage() {
               <h3>{t("salespeople")}</h3>
               <PeopleTable rows={sales.salespeople || []} unnamed={t("unnamedStaff")} sortBy={peopleSort} />
               <h3>{t("topCustomers")}</h3>
-              <PeopleTable rows={sales.customers || []} unnamed={t("unnamedStaff")} customers sortBy={peopleSort} />
+              <PeopleTable
+                rows={sales.customers || []}
+                unnamed={t("unnamedStaff")}
+                customers
+                sortBy={peopleSort}
+                onPick={(id) => {
+                  setShopperId(id);
+                  setTab("daily");
+                }}
+              />
             </>
           )}
         </>
@@ -572,11 +617,13 @@ function PeopleTable({
   unnamed,
   customers = false,
   sortBy = "sales",
+  onPick,
 }: {
   rows: ReportPerson[];
   unnamed: string;
   customers?: boolean;
   sortBy?: "sales" | "collected";
+  onPick?: (id: number) => void;
 }) {
   const { t } = useI18n();
   const ranked = [...rows].sort((a, b) =>
@@ -601,7 +648,15 @@ function PeopleTable({
         <tbody>
           {ranked.map((row) => (
             <tr key={customers ? String(row.shopper_id) : row.name || unnamed}>
-              <td>{row.name || unnamed}</td>
+              <td>
+                {customers && onPick && row.shopper_id ? (
+                  <button className="linkish" type="button" onClick={() => onPick(row.shopper_id!)} title={t("viewCustomerReport")}>
+                    {row.name || unnamed}
+                  </button>
+                ) : (
+                  row.name || unnamed
+                )}
+              </td>
               {customers ? <td className="muted">{row.phone}</td> : null}
               <td>{row.receipt_count}</td>
               <td>{money(row.revenue_cents)}</td>
