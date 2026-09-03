@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { type MsgKey, useI18n } from "../i18n";
@@ -166,6 +166,7 @@ export function ItemPicker({
   costMode?: boolean;
 }) {
   const { t, pick, locale } = useI18n();
+  const searchRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState("");
   const [qty, setQty] = useState("1");
@@ -176,9 +177,70 @@ export function ItemPicker({
     api<Item[]>("/api/items").then(setItems).catch(() => undefined);
   }, []);
 
+  function resolveItem(needle: string): Item | null {
+    const n = needle.trim().toLowerCase();
+    if (!n) return picked;
+    const exactSku = items.find((i) => i.sku.toLowerCase() === n);
+    if (exactSku) return exactSku;
+    const exactName = items.filter(
+      (i) => i.name.toLowerCase() === n || (i.name_id || "").toLowerCase() === n,
+    );
+    if (exactName.length === 1) return exactName[0];
+    const partial = items.filter(
+      (i) =>
+        i.sku.toLowerCase().includes(n) ||
+        i.name.toLowerCase().includes(n) ||
+        (i.name_id || "").toLowerCase().includes(n),
+    );
+    if (partial.length === 1) return partial[0];
+    return picked;
+  }
+
+  function selectItem(item: Item) {
+    setPicked(item);
+    setQ("");
+    if (costMode) setExtra(String(Math.round((item.fifo_cogs_cents ?? item.unit_cost_cents) / 100)));
+    setQty(String(qtyStep(item.unit)));
+  }
+
+  function tryAdd(item: Item) {
+    const want = Number(qty);
+    if (!Number.isFinite(want) || want <= 0) return;
+    const sellable = item.available ?? item.quantity;
+    if (!costMode && want > sellable) return;
+    onAdd(item, want, extra ? Number(extra) : undefined);
+    setPicked(null);
+    setQ("");
+    setQty("1");
+    setExtra("");
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
+  function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const item = picked || resolveItem(e.currentTarget.value);
+    if (item) tryAdd(item);
+  }
+
+  function onQtyKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (picked) tryAdd(picked);
+  }
+
   const want = Number(qty);
   const sellable = picked ? (picked.available ?? picked.quantity) : 0;
   const overStock = Boolean(!costMode && picked && Number.isFinite(want) && want > sellable);
+
+  useEffect(() => {
+    const n = q.trim().toLowerCase();
+    if (!n || picked) return;
+    const exact = items.find((i) => i.sku.toLowerCase() === n);
+    if (exact) selectItem(exact);
+  }, [q, items, picked]);
 
   const shown = items
     .filter((i) => {
@@ -197,15 +259,24 @@ export function ItemPicker({
       <label>
         {t("item")}
         <input
+          ref={searchRef}
           className="search"
           placeholder={t("searchSku")}
           value={picked ? pick(picked.name, picked.name_id) : q}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           onChange={(e) => {
             setPicked(null);
             setQ(e.target.value);
           }}
+          onKeyDown={onSearchKeyDown}
         />
       </label>
+      <p className="muted" style={{ margin: 0 }}>
+        {t("scanSkuHint")}
+      </p>
       {!picked && q && (
         <div className="pick-list">
           {shown.map((i) => (
@@ -213,12 +284,7 @@ export function ItemPicker({
               type="button"
               className="chip"
               key={i.id}
-              onClick={() => {
-                setPicked(i);
-                setQ("");
-                if (costMode) setExtra(String(Math.round((i.fifo_cogs_cents ?? i.unit_cost_cents) / 100)));
-                setQty(String(qtyStep(i.unit)));
-              }}
+              onClick={() => selectItem(i)}
             >
               {pick(i.name, i.name_id)} · {i.sku} · {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
               {(i.reserved || 0) > 0 ? ` · ${t("heldInCart", { qty: formatQty(i.reserved || 0) })}` : ""}
@@ -228,7 +294,7 @@ export function ItemPicker({
       )}
       <label>
         {t("quantity")}
-        <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
+        <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" onKeyDown={onQtyKeyDown} />
       </label>
       {costMode && (
         <label>
@@ -247,10 +313,7 @@ export function ItemPicker({
         disabled={!picked || want <= 0 || overStock}
         onClick={() => {
           if (!picked || overStock) return;
-          onAdd(picked, want, extra ? Number(extra) : undefined);
-          setPicked(null);
-          setQ("");
-          setQty("1");
+          tryAdd(picked);
         }}
       >
         {t("addLine")}
