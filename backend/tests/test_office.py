@@ -788,3 +788,60 @@ def test_delete_item_in_history_archives(client: TestClient):
     assert still["archived"] is True
     with_archived = client.get("/api/items", params={"include_archived": True}).json()
     assert any(i["id"] == item_id and i["archived"] for i in with_archived)
+
+
+def test_customer_file_lists_and_edits(client: TestClient):
+    nails = _item(client, "NAL-1")
+    sale = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Pak Hasan",
+            "customer_phone": "081300000444",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": False,
+        },
+    )
+    assert sale.status_code == 200, sale.text
+    shopper_id = sale.json()["shopper_id"]
+    listed = client.get("/api/shoppers").json()
+    hasan = next(s for s in listed if s["id"] == shopper_id)
+    assert hasan["name"] == "Pak Hasan"
+    assert hasan["receipt_count"] == 1
+    assert hasan["revenue_cents"] == sale.json()["total_cents"]
+    assert hasan["unpaid_cents"] == sale.json()["total_cents"]
+
+    detail = client.get(f"/api/shoppers/{shopper_id}").json()
+    assert len(detail["invoices"]) == 1
+    assert detail["invoices"][0]["number"] == sale.json()["number"]
+
+    renamed = client.patch(
+        f"/api/shoppers/{shopper_id}",
+        json={"name": "Hasan Wijaya", "phone": "081300000445"},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "Hasan Wijaya"
+    assert renamed.json()["phone"] == "081300000445"
+    receipt = client.get(f"/api/invoices/{sale.json()['id']}").json()
+    assert receipt["shopper_name"] == "Hasan Wijaya"
+    assert receipt["shopper_phone"] == "081300000445"
+
+    other = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Bu Sari",
+            "customer_phone": "081300000555",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": True,
+        },
+    )
+    assert other.status_code == 200, other.text
+    clash = client.patch(
+        f"/api/shoppers/{shopper_id}",
+        json={"phone": "081300000555"},
+    )
+    assert clash.status_code == 409
+    missing = client.get("/api/shoppers/999999")
+    assert missing.status_code == 404
+

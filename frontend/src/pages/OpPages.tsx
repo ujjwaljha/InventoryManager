@@ -37,6 +37,9 @@ export function OpDashboard() {
         <Link className="btn ghost" to="/credit">
           {t("credit")}
         </Link>
+        <Link className="btn ghost" to="/customers">
+          {t("customerFile")}
+        </Link>
         <Link className="btn ghost" to="/reports">
           {t("reports")}
         </Link>

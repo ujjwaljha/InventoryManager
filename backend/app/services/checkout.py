@@ -549,6 +549,13 @@ def shopper_public(shopper: Shopper) -> dict:
     return {"id": shopper.id, "name": shopper.name, "phone": shopper.phone, "email": shopper.email}
 
 
+def normalize_phone(phone: str) -> str:
+    digits = "".join(ch for ch in (phone or "").strip() if ch.isdigit() or ch == "+")
+    if len(digits) < 6:
+        raise CheckoutError("Phone is required")
+    return digits
+
+
 def search_shoppers(db: Session, q: str | None = None, limit: int = 80) -> list[Shopper]:
     last_sale = (
         select(Invoice.shopper_id, func.max(Invoice.issued_at).label("last_at"))
@@ -575,13 +582,81 @@ def search_shoppers(db: Session, q: str | None = None, limit: int = 80) -> list[
     return list(db.execute(stmt.limit(limit)).scalars())
 
 
+def decorate_shoppers(db: Session, people: list[Shopper]) -> list[dict]:
+    ids = [s.id for s in people]
+    stats: dict[int, dict] = {}
+    unpaid: dict[int, int] = {}
+    if ids:
+        for shopper_id, count, revenue, last_at in db.execute(
+            select(
+                Invoice.shopper_id,
+                func.count(Invoice.id),
+                func.coalesce(func.sum(Invoice.total_cents), 0),
+                func.max(Invoice.issued_at),
+            )
+            .where(Invoice.shopper_id.in_(ids), Invoice.status.in_(("issued", "paid")))
+            .group_by(Invoice.shopper_id)
+        ):
+            stats[int(shopper_id)] = {
+                "receipt_count": int(count or 0),
+                "revenue_cents": int(revenue or 0),
+                "last_issued_at": last_at,
+            }
+        issued = db.execute(
+            select(Invoice)
+            .options(selectinload(Invoice.payments))
+            .where(Invoice.shopper_id.in_(ids), Invoice.status == "issued")
+        ).scalars()
+        for inv in issued:
+            unpaid[inv.shopper_id] = unpaid.get(inv.shopper_id, 0) + balance_cents(inv)
+    out = []
+    for shopper in people:
+        row = shopper_public(shopper)
+        meta = stats.get(shopper.id, {})
+        row["receipt_count"] = meta.get("receipt_count", 0)
+        row["revenue_cents"] = meta.get("revenue_cents", 0)
+        row["unpaid_cents"] = unpaid.get(shopper.id, 0)
+        row["last_issued_at"] = meta.get("last_issued_at")
+        out.append(row)
+    return out
+
+
+def shopper_summaries(db: Session, q: str | None = None, limit: int = 80) -> list[dict]:
+    return decorate_shoppers(db, search_shoppers(db, q, limit))
+
+
+def update_shopper(
+    db: Session,
+    shopper_id: int,
+    name: str | None = None,
+    phone: str | None = None,
+    email: str | None = None,
+) -> Shopper:
+    shopper = db.get(Shopper, shopper_id)
+    if shopper is None:
+        raise CheckoutError("Customer not found", status_code=404)
+    if name is not None:
+        name = name.strip()
+        if not name:
+            raise CheckoutError("Name is required")
+        shopper.name = name
+    if phone is not None:
+        phone = normalize_phone(phone)
+        clash = db.execute(select(Shopper).where(Shopper.phone == phone, Shopper.id != shopper.id)).scalar_one_or_none()
+        if clash:
+            raise CheckoutError("That mobile number already belongs to another customer", status_code=409)
+        shopper.phone = phone
+    if email is not None:
+        shopper.email = email.strip()
+    db.flush()
+    return shopper
+
+
 def upsert_shopper(db: Session, name: str, phone: str, email: str = "") -> Shopper:
-    phone = "".join(ch for ch in phone.strip() if ch.isdigit() or ch == "+")
+    phone = normalize_phone(phone)
     name = name.strip()
     if not name:
         raise CheckoutError("Name is required")
-    if len(phone) < 6:
-        raise CheckoutError("Phone is required")
     existing = db.execute(select(Shopper).where(Shopper.phone == phone)).scalar_one_or_none()
     if existing:
         existing.name = name

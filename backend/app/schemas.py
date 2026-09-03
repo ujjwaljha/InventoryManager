@@ -16,6 +16,12 @@ class ShopperOut(BaseModel):
     email: str
 
 
+class ShopperPatch(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+
+
 class CategoryIn(BaseModel):
     name: str = Field(min_length=1)
     name_id: str = ""
