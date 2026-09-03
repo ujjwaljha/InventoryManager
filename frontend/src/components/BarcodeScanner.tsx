@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { cameraSupported, detectBarcode } from "../barcode";
+import { cameraSupported, detectBarcode, detectBarcodeFromFile } from "../barcode";
 import { useI18n } from "../i18n";
 
 export type ScanResult = {
@@ -146,9 +146,7 @@ export function BarcodeScanner({
     setStatus(t("scanLooking"));
     setStatusOk(null);
     try {
-      const bitmap = await createImageBitmap(file);
-      const code = await detectBarcode(bitmap);
-      bitmap.close();
+      const code = await detectBarcodeFromFile(file);
       if (!code) {
         setStatus(t("scanNotFound"));
         setStatusOk(false);

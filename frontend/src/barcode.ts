@@ -40,17 +40,25 @@ function nativeDetector(): Promise<Detector | null> {
   return detectorReady;
 }
 
+function isHtmlImage(source: unknown): source is HTMLImageElement {
+  return typeof HTMLImageElement !== "undefined" && source instanceof HTMLImageElement;
+}
+
 async function imageDataFrom(source: ImageBitmapSource): Promise<ImageData | null> {
   if (typeof HTMLVideoElement !== "undefined" && source instanceof HTMLVideoElement) {
     if (source.readyState < 2 || source.videoWidth < 16) return null;
     return drawToImageData(source, source.videoWidth, source.videoHeight);
   }
   if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
-    const ctx = source.getContext("2d");
-    if (!ctx) return null;
-    return ctx.getImageData(0, 0, source.width, source.height);
+    return drawToImageData(source, source.width, source.height);
   }
   if (typeof ImageData !== "undefined" && source instanceof ImageData) return source;
+  if (isHtmlImage(source)) {
+    const w = source.naturalWidth || source.width;
+    const h = source.naturalHeight || source.height;
+    if (w < 8 || h < 8) return null;
+    return drawToImageData(source, w, h);
+  }
   try {
     const bitmap = source instanceof ImageBitmap ? source : await createImageBitmap(source);
     const data = drawToImageData(bitmap, bitmap.width, bitmap.height);
@@ -75,17 +83,46 @@ function drawToImageData(source: CanvasImageSource, width: number, height: numbe
   canvas.height = h;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
   ctx.drawImage(source, 0, 0, w, h);
   return ctx.getImageData(0, 0, w, h);
+}
+
+function upsample(image: ImageData, factor: number): ImageData {
+  const w = image.width * factor;
+  const h = image.height * factor;
+  const out = new ImageData(w, h);
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const si = (y * image.width + x) * 4;
+      for (let dy = 0; dy < factor; dy++) {
+        for (let dx = 0; dx < factor; dx++) {
+          const di = ((y * factor + dy) * w + (x * factor + dx)) * 4;
+          out.data[di] = image.data[si];
+          out.data[di + 1] = image.data[si + 1];
+          out.data[di + 2] = image.data[si + 2];
+          out.data[di + 3] = 255;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 async function detectQrFallback(source: ImageBitmapSource): Promise<string | null> {
   const image = await imageDataFrom(source);
   if (!image) return null;
   const { default: jsQR } = await import("jsqr");
-  const hit = jsQR(image.data, image.width, image.height, { inversionAttempts: "attemptBoth" });
-  const raw = hit?.data?.trim();
-  return raw || null;
+  const variants = [image];
+  if (image.width < 400 || image.height < 400) variants.push(upsample(image, 2));
+  for (const variant of variants) {
+    const hit = jsQR(variant.data, variant.width, variant.height, { inversionAttempts: "attemptBoth" });
+    const raw = hit?.data?.trim();
+    if (raw) return raw;
+  }
+  return null;
 }
 
 export async function detectBarcode(source: ImageBitmapSource): Promise<string | null> {
@@ -100,6 +137,28 @@ export async function detectBarcode(source: ImageBitmapSource): Promise<string |
     }
   }
   return detectQrFallback(source);
+}
+
+export async function detectBarcodeFromFile(file: File): Promise<string | null> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await img.decode();
+    return await detectBarcode(img);
+  } catch {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const code = await detectBarcode(bitmap);
+      bitmap.close();
+      return code;
+    } catch {
+      return null;
+    }
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function cameraSupported(): boolean {

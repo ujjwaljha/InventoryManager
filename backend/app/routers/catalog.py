@@ -289,7 +289,7 @@ def item_sku_qr(item_id: int, db: Session = Depends(get_db)):
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     buf = io.BytesIO()
-    segno.make(item.sku, error="m").save(buf, kind="svg", scale=6, border=2)
+    segno.make(item.sku, error="m").save(buf, kind="svg", scale=10, border=4)
     return Response(
         content=buf.getvalue(),
         media_type="image/svg+xml",
