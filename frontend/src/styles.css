@@ -338,7 +338,7 @@ a.kpi:hover {
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -1156,36 +1156,41 @@ tbody tr:hover {
     position: sticky;
     top: 0;
     height: 100vh;
-    overflow: auto;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 20px 14px 18px;
+    padding: 16px 12px 14px;
     background: var(--card);
     border-right: 1px solid var(--line);
   }
   .sidebar .brand {
-    padding: 4px 8px 12px;
-    font-size: 1.15rem;
+    padding: 2px 8px 8px;
+    font-size: 1.08rem;
+    flex-shrink: 0;
   }
   .sidebar-nav {
     display: grid;
-    gap: 2px;
+    gap: 1px;
     flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 8px;
   }
   .nav-group-label {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--ink-soft);
     font-weight: 700;
-    padding: 14px 10px 4px;
+    padding: 10px 10px 2px;
   }
   .sidebar a:not(.btn) {
-    padding: 8px 10px;
-    border-radius: 10px;
+    padding: 6px 10px;
+    border-radius: 8px;
     color: var(--ink-soft);
     font-weight: 600;
+    font-size: 0.92rem;
   }
   .sidebar a:not(.btn):hover {
     background: rgba(30, 77, 58, 0.06);
@@ -1198,9 +1203,10 @@ tbody tr:hover {
   .sidebar-foot {
     display: grid;
     gap: 10px;
-    margin-top: 16px;
-    padding-top: 14px;
+    margin-top: 8px;
+    padding-top: 12px;
     border-top: 1px solid var(--line);
+    flex-shrink: 0;
   }
   .main-pane {
     padding: 28px 32px 48px;
@@ -1246,13 +1252,19 @@ html.desktop-app .sidebar {
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 20px 14px 18px;
+  padding: 16px 12px 14px;
   background: var(--card);
   border-right: 1px solid var(--line);
+}
+
+html.desktop-app .sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 html.desktop-app .sidebar a:not(.btn) {
