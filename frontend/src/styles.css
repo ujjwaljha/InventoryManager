@@ -826,12 +826,6 @@ tbody tr:hover {
   color: var(--danger);
 }
 
-.pick-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 .thermal-receipt {
   width: 2.5in;
   max-width: 2.5in;
@@ -1418,6 +1412,23 @@ html.desktop-app .main-pane {
   color: var(--ink-soft);
 }
 
+.empty-state {
+  text-align: center;
+  padding: 36px 16px;
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.card.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.card.empty-state h2 {
+  margin: 0;
+}
+
 .more-link {
   font-weight: 650;
   padding: 14px 16px;
@@ -1425,6 +1436,191 @@ html.desktop-app .main-pane {
 
 .more-link:hover {
   border-color: var(--leaf);
+}
+
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.filter-card {
+  display: grid;
+  gap: 12px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbar .search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.table-wrap h3,
+.table-wrap .muted,
+.table-wrap .empty-state {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.table-wrap h3 {
+  padding-top: 16px;
+  margin: 0;
+}
+
+.table-wrap th:first-child,
+.table-wrap td:first-child {
+  padding-left: 16px;
+}
+
+.table-wrap th:last-child,
+.table-wrap td:last-child {
+  padding-right: 16px;
+}
+
+.result-list {
+  padding: 0;
+  overflow: hidden;
+}
+
+.result-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.result-row:last-child {
+  border-bottom: 0;
+}
+
+.result-row > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.result-row > :first-child b {
+  overflow-wrap: anywhere;
+}
+
+.result-row .price {
+  max-width: 48%;
+}
+
+a.result-row:hover,
+button.result-row:hover {
+  background: rgba(30, 77, 58, 0.045);
+}
+
+.till-desk {
+  display: grid;
+  gap: 14px;
+}
+
+.till-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  font-weight: 650;
+}
+
+.till-total .price {
+  font-size: 1.45rem;
+  text-align: right;
+}
+
+.pay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.pay-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--forest);
+}
+
+.item-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.item-hero-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.pick-list {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  overflow: hidden;
+  background: #fff;
+}
+
+.pick-option {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.pick-option:last-child {
+  border-bottom: 0;
+}
+
+.pick-option:hover {
+  background: rgba(30, 77, 58, 0.05);
+}
+
+@media (min-width: 900px) {
+  .till-desk {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+    align-items: start;
+  }
+
+  .till-checkout {
+    position: sticky;
+    top: 16px;
+  }
 }
 
 @media print {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { InvoiceSheet, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice, PurchaseOrder } from "../types";
@@ -41,8 +42,8 @@ export function ShopInvoices() {
   if (error) return <div className="banner">{error}</div>;
   if (rows.length === 0 && orders.length === 0) {
     return (
-      <div className="card">
-        <h2 style={{ margin: "4px 0 8px" }}>{t("noInvoices")}</h2>
+      <div className="card empty-state">
+        <h2>{t("noInvoices")}</h2>
         <p className="muted">{t("noInvoicesHint")}</p>
       </div>
     );
@@ -50,34 +51,44 @@ export function ShopInvoices() {
   return (
     <div className="grid">
       <PageHeader title={t("yourInvoices")} />
-      <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchOrders")} />
-      {shownInv.length === 0 && <p className="muted">{t("noInvoices")}</p>}
-      {shownInv.map((inv) => (
-        <Link className="card row" key={inv.id} to={`/shop/invoices/${inv.id}`}>
-          <div>
-            <b>{inv.number}</b>
-            <div className="muted">{when(inv.issued_at, locale)}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <StatusTag status={inv.status} />
-            <div className="price">{money(inv.total_cents, inv.currency_symbol)}</div>
-          </div>
-        </Link>
-      ))}
-      <h3 style={{ margin: 0 }}>{t("yourOrders")}</h3>
-      {shownPo.length === 0 && <p className="muted">{t("noOrders")}</p>}
-      {shownPo.map((po) => {
-        const href = po.invoice ? `/shop/invoices/${po.invoice.id}` : "/shop/invoices";
-        return (
-          <Link className="card row" key={po.id} to={href}>
-            <div>
-              <b>{po.number}</b> <StatusTag status={po.status} />
-              <div className="muted">{when(po.placed_at || po.created_at, locale)}</div>
-            </div>
-            <div className="price">{money(po.total_cents, po.currency_symbol)}</div>
-          </Link>
-        );
-      })}
+      <div className="card filter-card">
+        <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchOrders")} />
+      </div>
+      {shownInv.length === 0 && <p className="empty-state">{t("noInvoices")}</p>}
+      {shownInv.length > 0 ? (
+        <ResultList>
+          {shownInv.map((inv) => (
+            <Link className="result-row" key={inv.id} to={`/shop/invoices/${inv.id}`}>
+              <div>
+                <b>{inv.number}</b>
+                <div className="muted">{when(inv.issued_at, locale)}</div>
+              </div>
+              <div className="split-amount">
+                <StatusTag status={inv.status} />
+                <div className="price">{money(inv.total_cents, inv.currency_symbol)}</div>
+              </div>
+            </Link>
+          ))}
+        </ResultList>
+      ) : null}
+      <h3>{t("yourOrders")}</h3>
+      {shownPo.length === 0 && <p className="empty-state">{t("noOrders")}</p>}
+      {shownPo.length > 0 ? (
+        <ResultList>
+          {shownPo.map((po) => {
+            const href = po.invoice ? `/shop/invoices/${po.invoice.id}` : "/shop/invoices";
+            return (
+              <Link className="result-row" key={po.id} to={href}>
+                <div>
+                  <b>{po.number}</b> <StatusTag status={po.status} />
+                  <div className="muted">{when(po.placed_at || po.created_at, locale)}</div>
+                </div>
+                <div className="price">{money(po.total_cents, po.currency_symbol)}</div>
+              </Link>
+            );
+          })}
+        </ResultList>
+      ) : null}
     </div>
   );
 }

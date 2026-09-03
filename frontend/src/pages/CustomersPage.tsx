@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { PageHeader, StatusTag } from "../components/ui";
+import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
 import type { Invoice, Shopper } from "../types";
@@ -29,7 +30,7 @@ export function CustomersPage() {
     <div className="grid">
       <PageHeader title={t("customerFile")} hint={t("customerFileHint")} />
       <form
-        className="row"
+        className="card filter-card toolbar"
         onSubmit={(e) => {
           e.preventDefault();
           load().catch((e) => setError(e instanceof Error ? e.message : t("couldNotAdd")));
@@ -41,27 +42,31 @@ export function CustomersPage() {
         </button>
       </form>
       {error && <div className="banner">{error}</div>}
-      {rows.length === 0 && <p className="muted">{t("noCustomersYet")}</p>}
-      {rows.map((c) => (
-        <Link className="card row" key={c.id} to={`/customers/${c.id}`} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{c.name}</b>
-            <div className="muted">{c.phone}</div>
-            {c.last_issued_at ? (
-              <div className="muted">
-                {t("lastPurchase")}: {when(c.last_issued_at, locale)}
+      {rows.length === 0 && <p className="empty-state">{t("noCustomersYet")}</p>}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((c) => (
+            <Link className="result-row" key={c.id} to={`/customers/${c.id}`}>
+              <div>
+                <b>{c.name}</b>
+                <div className="muted">{c.phone}</div>
+                {c.last_issued_at ? (
+                  <div className="muted">
+                    {t("lastPurchase")}: {when(c.last_issued_at, locale)}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div className="price">{money(c.revenue_cents || 0)}</div>
-            <div className="muted">
-              {c.receipt_count || 0} {t("receipts")}
-              {(c.unpaid_cents || 0) > 0 ? ` · ${t("unpaid")} ${money(c.unpaid_cents || 0)}` : ""}
-            </div>
-          </div>
-        </Link>
-      ))}
+              <div className="split-amount">
+                <div className="price">{money(c.revenue_cents || 0)}</div>
+                <div className="muted">
+                  {c.receipt_count || 0} {t("receipts")}
+                  {(c.unpaid_cents || 0) > 0 ? ` · ${t("unpaid")} ${money(c.unpaid_cents || 0)}` : ""}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }
@@ -168,16 +173,20 @@ export function CustomerDetailPage() {
         </div>
       </div>
       <h3>{t("receipts")}</h3>
-      {(customer.invoices || []).length === 0 && <p className="muted">{t("noRows")}</p>}
-      {(customer.invoices || []).map((inv) => (
-        <Link className="card row" key={inv.id} to={`/receipts/${inv.id}`} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{inv.number}</b> <StatusTag status={inv.status} />
-            <div className="muted">{when(inv.issued_at, locale)}</div>
-          </div>
-          <div className="price">{money(inv.total_cents)}</div>
-        </Link>
-      ))}
+      {(customer.invoices || []).length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {(customer.invoices || []).length > 0 ? (
+        <ResultList>
+          {(customer.invoices || []).map((inv) => (
+            <Link className="result-row" key={inv.id} to={`/receipts/${inv.id}`}>
+              <div>
+                <b>{inv.number}</b> <StatusTag status={inv.status} />
+                <div className="muted">{when(inv.issued_at, locale)}</div>
+              </div>
+              <div className="price">{money(inv.total_cents)}</div>
+            </Link>
+          ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }

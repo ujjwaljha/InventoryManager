@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { ScanButton } from "../components/BarcodeScanner";
 import { IdentifyForm, PageHeader, SalesAgentSelect } from "../components/ui";
+import { ResultList } from "../components/Finder";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel } from "../money";
@@ -201,20 +202,22 @@ export function ShopHome({
   }
 
   return (
-    <div>
-      <div className="scan-row">
-        <input className="search" placeholder={t("searchShop")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <ScanButton onCode={handleScan} disabled={!items.length} />
-      </div>
-      <div className="chips" style={{ margin: "12px 0" }}>
-        <button className={`chip ${cat === "all" ? "on" : ""}`} onClick={() => setCat("all")}>
-          {t("all")}
-        </button>
-        {categories.map(([id, label]) => (
-          <button key={id} className={`chip ${cat === id ? "on" : ""}`} onClick={() => setCat(id)}>
-            {label}
+    <div className="grid">
+      <div className="card filter-card">
+        <div className="scan-row">
+          <input className="search" placeholder={t("searchShop")} value={q} onChange={(e) => setQ(e.target.value)} />
+          <ScanButton onCode={handleScan} disabled={!items.length} />
+        </div>
+        <div className="chips">
+          <button className={`chip ${cat === "all" ? "on" : ""}`} onClick={() => setCat("all")}>
+            {t("all")}
           </button>
-        ))}
+          {categories.map(([id, label]) => (
+            <button key={id} className={`chip ${cat === id ? "on" : ""}`} onClick={() => setCat(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       {error && <div className="banner">{error}</div>}
       {identify && (
@@ -226,6 +229,7 @@ export function ShopHome({
           }}
         />
       )}
+      {shown.length === 0 && <p className="empty-state">{t("noRows")}</p>}
       <div className="cards">
         {shown.map((item) => (
           <article className="card product-card" key={item.id}>
@@ -406,8 +410,8 @@ export function ShopCart({
 
   if (!po || po.lines.length === 0) {
     return (
-      <div className="card">
-        <h2 style={{ margin: "4px 0 8px" }}>{t("emptyPo")}</h2>
+      <div className="card empty-state">
+        <h2>{t("emptyPo")}</h2>
         <p className="muted">{t("emptyPoHint")}</p>
         <Link className="btn" to="/shop" style={{ display: "inline-block" }}>
           {t("browseShop")}
@@ -448,36 +452,39 @@ export function ShopCart({
         }
       />
       {error && <div className="banner">{error}</div>}
-      {po.lines.map((ln) => (
-        <div className="card row" key={ln.id} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{pick(ln.name, ln.name_id)}</b>
-            <div className="sku">{ln.sku}</div>
-            <div className="muted">
-              {money(ln.unit_price_cents, po.currency_symbol)} / {unitLabel(ln.unit || "ea", locale)}
+      <ResultList>
+        {po.lines.map((ln) => (
+          <div className="result-row" key={ln.id}>
+            <div>
+              <b>{pick(ln.name, ln.name_id)}</b>
+              <div className="sku">{ln.sku}</div>
+              <div className="muted">
+                {money(ln.unit_price_cents, po.currency_symbol)} / {unitLabel(ln.unit || "ea", locale)}
+              </div>
+            </div>
+            <div className="split-amount">
+              <div className="stepper">
+                <button className="icon-btn" onClick={() => setQty(ln.item_id, Math.round((ln.quantity - qtyStep(ln.unit || "ea")) * 1000) / 1000)}>
+                  −
+                </button>
+                <b>{formatQty(ln.quantity)}</b>
+                <button className="icon-btn" onClick={() => setQty(ln.item_id, Math.round((ln.quantity + qtyStep(ln.unit || "ea")) * 1000) / 1000)}>
+                  +
+                </button>
+              </div>
+              <div className="price">{money(ln.line_total_cents, po.currency_symbol)}</div>
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div className="stepper">
-              <button className="icon-btn" onClick={() => setQty(ln.item_id, Math.round((ln.quantity - qtyStep(ln.unit || "ea")) * 1000) / 1000)}>
-                −
-              </button>
-              <b>{formatQty(ln.quantity)}</b>
-              <button className="icon-btn" onClick={() => setQty(ln.item_id, Math.round((ln.quantity + qtyStep(ln.unit || "ea")) * 1000) / 1000)}>
-                +
-              </button>
-            </div>
-            <div className="price">{money(ln.line_total_cents, po.currency_symbol)}</div>
-          </div>
-        </div>
-      ))}
-      <SalesAgentSelect value={salesperson || ""} onChange={setSalesperson} />
-      <label className="muted">
-        {t("noteForShop")}
-        <input className="search" style={{ marginTop: 6 }} value={note} onChange={(e) => setNote(e.target.value)} />
-      </label>
-      <div className="card">
-        <div className="row" style={{ justifyContent: "space-between" }}>
+        ))}
+      </ResultList>
+      <div className="card form-grid till-checkout">
+        <h3>{t("checkout")}</h3>
+        <SalesAgentSelect value={salesperson || ""} onChange={setSalesperson} />
+        <label>
+          {t("noteForShop")}
+          <input value={note} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        <div className="till-total">
           <span>{t("subtotal")}</span>
           <span>{money(po.subtotal_cents, po.currency_symbol)}</span>
         </div>
@@ -487,15 +494,17 @@ export function ShopCart({
             <span>{money(po.tax_cents, po.currency_symbol)}</span>
           </div>
         )}
-        <div className="row" style={{ justifyContent: "space-between", marginTop: 8 }}>
-          <b>{t("total")}</b>
-          <b className="price">{money(po.total_cents, po.currency_symbol)}</b>
+        <div className="till-total">
+          <span>{t("total")}</span>
+          <div className="price">{money(po.total_cents, po.currency_symbol)}</div>
         </div>
-        <label className="row" style={{ gap: 8, margin: "8px 0" }}>
+        <label className="pay-toggle">
           <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} />
           {paidNow ? t("paidNow") : t("creditSale")}
         </label>
-        <p className="muted">{t("placeHint")}</p>
+        <p className="muted" style={{ margin: 0 }}>
+          {t("placeHint")}
+        </p>
         {shortages.length > 0 && (
           <button className="btn ghost block" type="button" disabled={busy} onClick={trimToStock}>
             {t("trimToStock")}

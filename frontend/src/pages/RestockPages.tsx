@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { ItemPicker, PageHeader, StatusTag } from "../components/ui";
+import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, when } from "../money";
 import type { Item, Restock } from "../types";
@@ -23,18 +24,22 @@ export function RestockList() {
           </Link>
         }
       />
-      {rows.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {rows.map((row) => (
-        <Link className="card row" key={row.id} to={`/restock/${row.id}`} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{row.number}</b> <StatusTag status={row.status === "received" ? "received" : "draft"} />
-            <div className="muted">
-              {row.supplier_name || t("supplier")} · {when(row.received_at || row.created_at, locale)}
-            </div>
-          </div>
-          <div className="price">{money(row.total_cost_cents)}</div>
-        </Link>
-      ))}
+      {rows.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((row) => (
+            <Link className="result-row" key={row.id} to={`/restock/${row.id}`}>
+              <div>
+                <b>{row.number}</b> <StatusTag status={row.status === "received" ? "received" : "draft"} />
+                <div className="muted">
+                  {row.supplier_name || t("supplier")} · {when(row.received_at || row.created_at, locale)}
+                </div>
+              </div>
+              <div className="price">{money(row.total_cost_cents)}</div>
+            </Link>
+          ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }
@@ -140,7 +145,7 @@ export function RestockDetail() {
           <ItemPicker costMode onAdd={(item, qty, extra) => add(item, qty, extra)} />
         </div>
       )}
-      <div className="card" style={{ overflowX: "auto" }}>
+      <div className="card table-wrap">
         <table>
           <thead>
             <tr>

@@ -402,6 +402,9 @@ const STRINGS = {
     navSales: "Sales",
     navStock: "Stock",
     navOffice: "Office",
+    addItems: "Add items",
+    checkout: "Checkout",
+    shopProfile: "Shop profile",
   },
   id: {
     shopNameFallback: "Toko Bangunan Makmur",
@@ -802,6 +805,9 @@ const STRINGS = {
     navSales: "Penjualan",
     navStock: "Stok",
     navOffice: "Kantor",
+    addItems: "Tambah barang",
+    checkout: "Bayar",
+    shopProfile: "Profil toko",
   },
 } as const;
 

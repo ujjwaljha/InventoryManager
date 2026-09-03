@@ -190,9 +190,11 @@ export function ShareReceiptButton({ invoice }: { invoice: Invoice }) {
 export function ItemPicker({
   onAdd,
   costMode = false,
+  compact = false,
 }: {
   onAdd: (item: Item, qty: number, extra?: number) => void;
   costMode?: boolean;
+  compact?: boolean;
 }) {
   const { t, pick, locale } = useI18n();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -332,23 +334,30 @@ export function ItemPicker({
         </label>
         <ScanButton onCode={handleScan} disabled={!items.length} />
       </div>
-      <p className="muted" style={{ margin: 0 }}>
-        {t("scanSkuHint")}
-      </p>
-      <p className="muted" style={{ margin: 0 }}>
-        {t("scanCameraHint")}
-      </p>
+      {compact ? null : (
+        <>
+          <p className="muted" style={{ margin: 0 }}>
+            {t("scanSkuHint")}
+          </p>
+          <p className="muted" style={{ margin: 0 }}>
+            {t("scanCameraHint")}
+          </p>
+        </>
+      )}
       {!picked && q && (
         <div className="pick-list">
           {shown.map((i) => (
             <button
               type="button"
-              className="chip"
+              className="pick-option"
               key={i.id}
               onClick={() => selectItem(i)}
             >
-              {pick(i.name, i.name_id)} · {i.sku} · {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
-              {(i.reserved || 0) > 0 ? ` · ${t("heldInCart", { qty: formatQty(i.reserved || 0) })}` : ""}
+              <b>{pick(i.name, i.name_id)}</b>
+              <span className="muted">
+                {i.sku} · {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
+                {(i.reserved || 0) > 0 ? ` · ${t("heldInCart", { qty: formatQty(i.reserved || 0) })}` : ""}
+              </span>
             </button>
           ))}
         </div>

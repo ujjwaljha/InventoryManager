@@ -173,26 +173,40 @@ export function TillPage() {
           {t("trimToStock")}
         </button>
       )}
-      <form
-        className="card form-grid"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <SalesAgentSelect value={salesperson || ""} onChange={setSalesperson} />
-        <CustomerPicker name={customer} phone={phone} onName={setCustomer} onPhone={setPhone} />
-        <p className="muted">{t("tillKeepsCart")}</p>
-        <ItemPicker onAdd={(item, qty) => add(item, qty)} />
-        <div className="price">{t("total")} {money(total)}</div>
-        <label className="row" style={{ gap: 8 }}>
-          <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.currentTarget.checked)} />
-          {paidNow ? t("paidNow") : t("creditSale")}
-        </label>
-        <button className="btn" type="submit" disabled={busy || !lines.length}>
-          {t("completeSale")}
-        </button>
-      </form>
+      <div className="till-desk">
+        <section className="card form-grid">
+          <h3>{t("addItems")}</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            {t("scanSkuHint")}
+          </p>
+          <ItemPicker compact onAdd={(item, qty) => add(item, qty)} />
+        </section>
+        <form
+          className="card form-grid till-checkout"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <h3>{t("checkout")}</h3>
+          <SalesAgentSelect value={salesperson || ""} onChange={setSalesperson} />
+          <CustomerPicker name={customer} phone={phone} onName={setCustomer} onPhone={setPhone} />
+          <p className="muted" style={{ margin: 0 }}>
+            {t("tillKeepsCart")}
+          </p>
+          <div className="till-total">
+            <span>{t("total")}</span>
+            <div className="price">{money(total)}</div>
+          </div>
+          <label className="pay-toggle">
+            <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.currentTarget.checked)} />
+            {paidNow ? t("paidNow") : t("creditSale")}
+          </label>
+          <button className="btn block" type="submit" disabled={busy || !lines.length}>
+            {t("completeSale")}
+          </button>
+        </form>
+      </div>
       </div>
       <CartPane
         lines={lines.map((ln) => ({

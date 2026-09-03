@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
+import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, ResultList, buildQuery, useDebounced, type PageResult } from "../components/Finder";
 import { ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
@@ -43,7 +43,7 @@ export function ReceiptsPage() {
 
   return (
     <div className="grid">
-      <PageHeader title={t("lookUpReceipt")} />
+      <PageHeader title={t("lookUpReceipt")} hint={t("lookUpHint")} />
       <FinderBar
         q={q}
         onQ={setQ}
@@ -54,14 +54,17 @@ export function ReceiptsPage() {
         statuses={["issued", "paid", "void"]}
         status={status}
         onStatus={setStatus}
-        hint={t("lookUpHint")}
         onSubmit={() => load(0, q)}
       />
       {error && <div className="banner">{error}</div>}
-      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {page?.items.map((inv) => (
-        <InvoiceResultCard key={inv.id} invoice={inv} />
-      ))}
+      {page && page.items.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {page && page.items.length > 0 ? (
+        <ResultList>
+          {page.items.map((inv) => (
+            <InvoiceResultCard key={inv.id} invoice={inv} />
+          ))}
+        </ResultList>
+      ) : null}
       {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
@@ -81,14 +84,25 @@ export function ReceiptDetail() {
   if (!invoice) return <p className="muted">{t("loading")}</p>;
   return (
     <div className="grid print-thermal">
-      <div className="row no-print">
-        <Link to="/receipts">{t("backInvoices")}</Link>
-        <button className="btn" onClick={() => window.print()}>
-          {t("printThermal")}
-        </button>
-        <ShareReceiptButton invoice={invoice} />
+      <div className="no-print">
+        <PageHeader
+          kicker={invoice.number}
+          title={invoice.shopper_name || t("lookUpReceipt")}
+          hint={invoice.shopper_phone}
+          actions={
+            <>
+              <Link className="btn ghost" to="/receipts">
+                {t("backInvoices")}
+              </Link>
+              <button className="btn" onClick={() => window.print()}>
+                {t("printThermal")}
+              </button>
+              <ShareReceiptButton invoice={invoice} />
+            </>
+          }
+        />
+        <p className="muted">{t("thermalHint")}</p>
       </div>
-      <p className="muted no-print">{t("thermalHint")}</p>
       {invoice.status === "issued" && (
         <div className="row no-print">
           <button
@@ -212,19 +226,19 @@ export function CreditPage() {
         </article>
       ) : null}
       <div className={printFor ? "no-print" : ""}>
-      <div>
-        <PageHeader title={t("credit")} hint={t("creditHint")} />
-      </div>
-      <div className="chips">
-        <button className={`chip ${filter === "all" ? "on" : ""}`} type="button" onClick={() => setFilter("all")}>
-          {t("allUnpaid")}
-        </button>
-        <button className={`chip ${filter === "overdue" ? "on" : ""}`} type="button" onClick={() => setFilter("overdue")}>
-          {t("overdueOnly")}
-        </button>
-        <button className={`chip ${filter === "promised" ? "on" : ""}`} type="button" onClick={() => setFilter("promised")}>
-          {t("promiseDue")}
-        </button>
+      <PageHeader title={t("credit")} hint={t("creditHint")} />
+      <div className="card filter-card">
+        <div className="chips">
+          <button className={`chip ${filter === "all" ? "on" : ""}`} type="button" onClick={() => setFilter("all")}>
+            {t("allUnpaid")}
+          </button>
+          <button className={`chip ${filter === "overdue" ? "on" : ""}`} type="button" onClick={() => setFilter("overdue")}>
+            {t("overdueOnly")}
+          </button>
+          <button className={`chip ${filter === "promised" ? "on" : ""}`} type="button" onClick={() => setFilter("promised")}>
+            {t("promiseDue")}
+          </button>
+        </div>
       </div>
       <div className="row">
         <div className="card kpi">
@@ -256,7 +270,7 @@ export function CreditPage() {
           <b>{money(data.aging_cents?.d90_plus || 0, data.currency_symbol)}</b>
         </div>
       </div>
-      {customers.length === 0 && <p className="muted">{t("noCredit")}</p>}
+      {customers.length === 0 && <p className="empty-state">{t("noCredit")}</p>}
       {customers.map((c) => (
         <section className="card" key={c.shopper_id}>
           <div className="row split" style={{ justifyContent: "space-between" }}>
@@ -520,11 +534,13 @@ export function MorePage() {
   return (
     <div className="grid">
       <PageHeader title={t("moreOffice")} />
-      {links.map(([to, label]) => (
-        <Link className="card more-link" key={to} to={to}>
-          {label}
-        </Link>
-      ))}
+      <div className="more-grid">
+        {links.map(([to, label]) => (
+          <Link className="card more-link" key={to} to={to}>
+            {label}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

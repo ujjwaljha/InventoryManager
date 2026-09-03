@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { PageHeader, SharePanel } from "../components/ui";
-import { FinderBar, InvoiceResultCard, OrderResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
+import { FinderBar, InvoiceResultCard, OrderResultCard, PAGE_SIZE, Pager, ResultList, buildQuery, useDebounced, type PageResult } from "../components/Finder";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, unitLabel } from "../money";
 import type { Dashboard, Invoice, Item, ItemDeleteResult, Movement, PurchaseOrder } from "../types";
@@ -166,8 +166,10 @@ export function OpItems() {
       />
       {error && <div className="banner">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
-      <input className="search" placeholder={t("searchSku")} value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="card" style={{ overflowX: "auto" }}>
+      <div className="card filter-card">
+        <input className="search" placeholder={t("searchSku")} value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="card table-wrap">
         <table>
           <thead>
             <tr>
@@ -220,6 +222,7 @@ export function OpItems() {
             ))}
           </tbody>
         </table>
+        {shown.length === 0 ? <p className="empty-state">{t("noRows")}</p> : null}
       </div>
     </div>
   );
@@ -256,7 +259,7 @@ export function OpOrders() {
 
   return (
     <div className="grid">
-      <PageHeader title={t("purchaseOrders")} />
+      <PageHeader title={t("purchaseOrders")} hint={t("searchOrdersHint")} />
       <FinderBar
         q={q}
         onQ={setQ}
@@ -267,14 +270,17 @@ export function OpOrders() {
         statuses={["draft", "placed", "cancelled"]}
         status={status}
         onStatus={setStatus}
-        hint={t("searchOrdersHint")}
         onSubmit={() => setOffset(0)}
       />
       {error && <div className="banner">{error}</div>}
-      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {page?.items.map((po) => (
-        <OrderResultCard key={po.id} order={po} />
-      ))}
+      {page && page.items.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {page && page.items.length > 0 ? (
+        <ResultList>
+          {page.items.map((po) => (
+            <OrderResultCard key={po.id} order={po} />
+          ))}
+        </ResultList>
+      ) : null}
       {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
@@ -311,7 +317,7 @@ export function OpInvoices() {
 
   return (
     <div className="grid">
-      <PageHeader title={t("invoices")} />
+      <PageHeader title={t("invoices")} hint={t("lookUpHint")} />
       <FinderBar
         q={q}
         onQ={setQ}
@@ -322,14 +328,17 @@ export function OpInvoices() {
         statuses={["issued", "paid", "void"]}
         status={status}
         onStatus={setStatus}
-        hint={t("lookUpHint")}
         onSubmit={() => setOffset(0)}
       />
       {error && <div className="banner">{error}</div>}
-      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {page?.items.map((inv) => (
-        <InvoiceResultCard key={inv.id} invoice={inv} />
-      ))}
+      {page && page.items.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {page && page.items.length > 0 ? (
+        <ResultList>
+          {page.items.map((inv) => (
+            <InvoiceResultCard key={inv.id} invoice={inv} />
+          ))}
+        </ResultList>
+      ) : null}
       {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
