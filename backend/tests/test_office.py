@@ -718,3 +718,73 @@ def test_returning_customer_reuse_and_report_filter(client: TestClient):
     assert sari_pnl["revenue_cents"] == other.json()["total_cents"]
     assert sari_pnl["writeoff_cents"] == 0
 
+
+def test_item_create_update_and_delete(client: TestClient):
+    created = client.post(
+        "/api/items",
+        json={
+            "sku": "TST-DEL-1",
+            "name": "Test pipe",
+            "name_id": "Pipa uji",
+            "quantity": 4,
+            "unit": "pcs",
+            "unit_price_cents": 100000,
+            "unit_cost_cents": 80000,
+        },
+    )
+    assert created.status_code == 200, created.text
+    item_id = created.json()["id"]
+    assert created.json()["quantity"] == 4
+    patched = client.patch(
+        f"/api/items/{item_id}",
+        json={"name": "PVC pipe 3in", "unit": "batang", "unit_price_cents": 150000},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["name"] == "PVC pipe 3in"
+    assert patched.json()["unit"] == "batang"
+    assert patched.json()["unit_price_cents"] == 150000
+    gone = client.delete(f"/api/items/{item_id}")
+    assert gone.status_code == 200, gone.text
+    assert gone.json()["deleted"] is True
+    assert gone.json()["archived"] is False
+    assert client.get(f"/api/items/{item_id}").status_code == 404
+    assert all(i["id"] != item_id for i in client.get("/api/items").json())
+    again = client.post(
+        "/api/items",
+        json={"sku": "TST-DEL-1", "name": "Test pipe again", "unit_price_cents": 1},
+    )
+    assert again.status_code == 200, again.text
+    missing = client.delete("/api/items/999999")
+    assert missing.status_code == 404
+
+
+def test_delete_item_in_history_archives(client: TestClient):
+    created = client.post(
+        "/api/items",
+        json={
+            "sku": "TST-ARC-1",
+            "name": "Archive me",
+            "name_id": "Arsipkan",
+            "quantity": 2,
+            "unit_price_cents": 50000,
+            "unit_cost_cents": 40000,
+        },
+    )
+    assert created.status_code == 200, created.text
+    item_id = created.json()["id"]
+    restock = client.post("/api/restocks", json={"supplier_name": "CV Uji"}).json()
+    add = client.post(
+        f"/api/restocks/{restock['id']}/lines",
+        json={"item_id": item_id, "quantity": 1, "unit_cost_cents": 40000},
+    )
+    assert add.status_code == 200, add.text
+    res = client.delete(f"/api/items/{item_id}")
+    assert res.status_code == 200, res.text
+    assert res.json()["archived"] is True
+    assert res.json()["deleted"] is False
+    listed = client.get("/api/items").json()
+    assert all(i["id"] != item_id for i in listed)
+    still = client.get(f"/api/items/{item_id}").json()
+    assert still["archived"] is True
+    with_archived = client.get("/api/items", params={"include_archived": True}).json()
+    assert any(i["id"] == item_id and i["archived"] for i in with_archived)

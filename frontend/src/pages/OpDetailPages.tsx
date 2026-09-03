@@ -5,7 +5,7 @@ import { InvoiceSheet, PinSettings, SharePanel, ThermalReceipt } from "../compon
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, unitLabel, when } from "../money";
-import type { Category, CsvImportResult, Invoice, Item, Location, Movement, Settings, StockLot } from "../types";
+import type { Category, CsvImportResult, Invoice, Item, ItemDeleteResult, Location, Movement, Settings, StockLot } from "../types";
 
 export function OpItemDetail() {
   const { t, pick, locale } = useI18n();
@@ -18,6 +18,8 @@ export function OpItemDetail() {
   const [qty, setQty] = useState("1");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const nav = useNavigate();
 
   async function load() {
@@ -51,23 +53,46 @@ export function OpItemDetail() {
     e.preventDefault();
     if (!item) return;
     const fd = new FormData(e.currentTarget);
-    await api(`/api/items/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        name: fd.get("name"),
-        name_id: fd.get("name_id"),
-        sku: fd.get("sku"),
-        description: fd.get("description"),
-        description_id: fd.get("description_id"),
-        unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
-        unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
-        reorder_point: Number(fd.get("reorder")),
-        category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
-        location_id: fd.get("location_id") ? Number(fd.get("location_id")) : null,
-        notes: fd.get("notes"),
-      }),
-    });
-    await load();
+    setError("");
+    setNotice("");
+    try {
+      await api(`/api/items/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: fd.get("name"),
+          name_id: fd.get("name_id"),
+          sku: fd.get("sku"),
+          description: fd.get("description"),
+          description_id: fd.get("description_id"),
+          unit: fd.get("unit") || item.unit,
+          unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
+          unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
+          reorder_point: Number(fd.get("reorder")),
+          category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
+          location_id: fd.get("location_id") ? Number(fd.get("location_id")) : null,
+          notes: fd.get("notes"),
+        }),
+      });
+      setNotice(t("saved"));
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("updateFailed"));
+    }
+  }
+
+  async function remove() {
+    if (!item) return;
+    if (!window.confirm(t("deleteItemConfirm", { name: pick(item.name, item.name_id) }))) return;
+    setError("");
+    setNotice("");
+    setDeleting(true);
+    try {
+      const result = await api<ItemDeleteResult>(`/api/items/${id}`, { method: "DELETE" });
+      nav("/items", { state: { notice: result.archived ? t("itemArchived") : t("itemDeleted") } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("updateFailed"));
+      setDeleting(false);
+    }
   }
 
   if (!item) return <p className="muted">{t("loading")}</p>;
@@ -76,9 +101,11 @@ export function OpItemDetail() {
     <div className="grid">
       <Link to="/items">{t("backItems")}</Link>
       {error && <div className="banner">{error}</div>}
+      {notice && <div className="banner ok">{notice}</div>}
       <div className="card">
         <div className="sku">{item.sku}</div>
         <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
+        {item.archived ? <div className="stock low">{t("itemHidden")}</div> : null}
         <p className="price" style={{ margin: 0 }}>
           {t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })}
         </p>
@@ -93,7 +120,7 @@ export function OpItemDetail() {
         </p>
         {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
       </div>
-      <form className="card form-grid" onSubmit={save}>
+      <form key={item.updated_at} className="card form-grid" onSubmit={save}>
         <h3 style={{ margin: 0 }}>{t("details")}</h3>
         <label>
           {t("nameEn")}
@@ -122,6 +149,10 @@ export function OpItemDetail() {
         <label>
           {t("lastCost")}
           <input name="cost" type="number" step="1" defaultValue={rupiahFromCents(item.unit_cost_cents)} />
+        </label>
+        <label>
+          {t("unit")}
+          <input name="unit" defaultValue={item.unit} />
         </label>
         <label>
           {t("pickCategory")}
@@ -229,14 +260,8 @@ export function OpItemDetail() {
           </tbody>
         </table>
       </div>
-      <button
-        className="btn ghost"
-        onClick={async () => {
-          await api(`/api/items/${id}/archive`, { method: "POST" });
-          nav("/items");
-        }}
-      >
-        {t("archiveItem")}
+      <button className="btn warn" type="button" disabled={deleting} onClick={remove}>
+        {t("deleteNamed")}
       </button>
     </div>
   );

@@ -23,8 +23,14 @@ export type Item = {
   created_at: string;
   updated_at: string;
   low_stock: boolean;
-  fifo_cogs_cents?: number;
+    fifo_cogs_cents?: number;
   inventory_value_cents?: number;
+};
+
+export type ItemDeleteResult = {
+  ok: boolean;
+  deleted: boolean;
+  archived: boolean;
 };
 
 export type Shopper = {

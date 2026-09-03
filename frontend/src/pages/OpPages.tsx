@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { SharePanel, StatusTag } from "../components/ui";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, unitLabel, when } from "../money";
-import type { Dashboard, Invoice, Item, Movement, PurchaseOrder } from "../types";
+import type { Dashboard, Invoice, Item, ItemDeleteResult, Movement, PurchaseOrder } from "../types";
 
 export function OpDashboard() {
   const { t, pick, locale } = useI18n();
@@ -122,11 +122,19 @@ export function OpDashboard() {
 
 export function OpItems() {
   const { t, pick, locale } = useI18n();
+  const loc = useLocation();
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   useEffect(() => {
     api<Item[]>("/api/items").then(setItems);
   }, []);
+  useEffect(() => {
+    const fromDetail = (loc.state as { notice?: string } | null)?.notice;
+    if (fromDetail) setNotice(fromDetail);
+  }, [loc.state]);
   const shown = items.filter((i) => {
     if (!q) return true;
     const n = q.toLowerCase();
@@ -139,6 +147,24 @@ export function OpItems() {
     );
   });
   shown.sort((a, b) => pick(a.name, a.name_id).localeCompare(pick(b.name, b.name_id), locale === "id" ? "id" : "en"));
+
+  async function remove(item: Item) {
+    const label = pick(item.name, item.name_id);
+    if (!window.confirm(t("deleteItemConfirm", { name: label }))) return;
+    setError("");
+    setNotice("");
+    setDeletingId(item.id);
+    try {
+      const result = await api<ItemDeleteResult>(`/api/items/${item.id}`, { method: "DELETE" });
+      setItems((rows) => rows.filter((row) => row.id !== item.id));
+      setNotice(result.archived ? t("itemArchived") : t("itemDeleted"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("updateFailed"));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="grid">
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -147,6 +173,8 @@ export function OpItems() {
           {t("newItem")}
         </Link>
       </div>
+      {error && <div className="banner">{error}</div>}
+      {notice && <div className="banner ok">{notice}</div>}
       <input className="search" placeholder={t("searchSku")} value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="card" style={{ overflowX: "auto" }}>
         <table>
@@ -159,6 +187,7 @@ export function OpItems() {
               <th>{t("fifoCogs")}</th>
               <th>{t("price")}</th>
               <th>{t("location")}</th>
+              <th>{t("actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -181,6 +210,21 @@ export function OpItems() {
                 <td>{money(i.fifo_cogs_cents || i.unit_cost_cents)}</td>
                 <td>{money(i.unit_price_cents)}</td>
                 <td className="muted">{pick(i.location_name || "", i.location_name_id)}</td>
+                <td>
+                  <div className="table-actions">
+                    <Link className="btn ghost small" to={`/items/${i.id}`}>
+                      {t("edit")}
+                    </Link>
+                    <button
+                      className="btn danger-ghost small"
+                      type="button"
+                      disabled={deletingId === i.id}
+                      onClick={() => remove(i)}
+                    >
+                      {t("deleteNamed")}
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
