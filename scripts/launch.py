@@ -38,6 +38,15 @@ LANG = {
         "no_internet": "Pertama kali perlu internet sebentar untuk memasang pustaka. Coba lagi saat online.",
         "already": "Toko sudah berjalan. Membuka kasir…",
         "menu_shop": "Toko",
+        "menu_file": "Berkas",
+        "menu_view": "Tampilan",
+        "menu_help": "Bantuan",
+        "print": "Cetak…",
+        "fullscreen": "Layar penuh",
+        "about": "Tentang Toko Bangunan Makmur",
+        "about_body": "Toko bahan bangunan di jendela sendiri di komputer ini. Staf tetap masuk setelah ditutup. HP di Wi‑Fi yang sama memakai halaman toko.",
+        "quit_confirm": "Tutup jendela toko? HP akan kehilangan sambungan langsung.",
+        "cancel": "Batal",
         "need_webview": "Tidak bisa membuka jendela aplikasi. Di Windows, pasang Microsoft Edge WebView2.",
     },
     "en": {
@@ -61,6 +70,15 @@ LANG = {
         "no_internet": "The first start needs the internet briefly to install libraries. Try again when online.",
         "already": "The shop is already running. Opening the till…",
         "menu_shop": "Shop",
+        "menu_file": "File",
+        "menu_view": "View",
+        "menu_help": "Help",
+        "print": "Print…",
+        "fullscreen": "Full screen",
+        "about": "About Toko Bangunan Makmur",
+        "about_body": "Building-materials shop in its own window on this computer. Staff stay signed in after you close it. Phones on the same Wi‑Fi still use the shop page.",
+        "quit_confirm": "Close the shop window? Phones will lose the live connection.",
+        "cancel": "Cancel",
         "need_webview": "Could not open the app window. On Windows, install Microsoft Edge WebView2.",
     },
 }
@@ -220,11 +238,15 @@ def shop_page() -> str:
 
 
 def till_url() -> str:
-    return f"http://127.0.0.1:{PORT}/"
+    from app.desktop import local_page_url
+
+    return local_page_url("/till", port=PORT)
 
 
 def floor_url() -> str:
-    return f"http://127.0.0.1:{PORT}/shop"
+    from app.desktop import local_page_url
+
+    return local_page_url("/shop", port=PORT)
 
 
 def _dialog_path(result: object) -> Path | None:
@@ -284,20 +306,65 @@ def _restore_from(src: Path) -> bool:
         return False
 
 
+def _info(message: str) -> None:
+    try:
+        import tkinter
+        from tkinter import messagebox
+
+        root = tkinter.Tk()
+        root.withdraw()
+        messagebox.showinfo(t("title"), message)
+        root.destroy()
+    except Exception:
+        print(message, flush=True)
+
+
 def run_desktop(runtime: ShopRuntime | None) -> None:
     """Native shop window: Edge WebView2 on Windows, WKWebView on Mac."""
     import webview
     from webview.menu import Menu, MenuAction, MenuSeparator
 
-    window = webview.create_window(
-        t("title"),
-        till_url(),
-        width=1280,
-        height=840,
-        min_size=(960, 640),
-        text_select=True,
-        zoomable=True,
+    from app.desktop import (
+        MIN_HEIGHT,
+        MIN_WIDTH,
+        WindowPrefs,
+        app_icon_file,
+        load_window_prefs,
+        save_window_prefs,
+        sanitize_local_url,
+        webview_start_kwargs,
     )
+    from app.paths import bundle_root, user_data_dir
+
+    data_dir = user_data_dir()
+    prefs = load_window_prefs(data_dir, port=PORT)
+    start_url = sanitize_local_url(prefs.url, port=PORT)
+    create_kwargs: dict = {
+        "width": prefs.width,
+        "height": prefs.height,
+        "min_size": (MIN_WIDTH, MIN_HEIGHT),
+        "text_select": True,
+        "zoomable": True,
+        "confirm_close": True,
+        "background_color": "#f3eadc",
+        "maximized": prefs.maximized,
+    }
+    if prefs.x is not None and prefs.y is not None:
+        create_kwargs["x"] = prefs.x
+        create_kwargs["y"] = prefs.y
+
+    window = webview.create_window(t("title"), start_url, **create_kwargs)
+    state = WindowPrefs(
+        width=prefs.width,
+        height=prefs.height,
+        x=prefs.x,
+        y=prefs.y,
+        maximized=prefs.maximized,
+        url=start_url,
+    )
+
+    def persist() -> None:
+        save_window_prefs(data_dir, state)
 
     def show_till() -> None:
         win = webview.active_window()
@@ -355,33 +422,110 @@ def run_desktop(runtime: ShopRuntime | None) -> None:
     def copy_lan() -> None:
         _copy_text(shop_page())
 
+    def print_page() -> None:
+        win = webview.active_window()
+        if win:
+            win.evaluate_js("window.print()")
+
+    def fullscreen() -> None:
+        win = webview.active_window()
+        if win:
+            win.toggle_fullscreen()
+
+    def show_about() -> None:
+        _info(t("about_body"))
+
     def stop() -> None:
         win = webview.active_window()
         if win:
             win.destroy()
 
+    def on_moved(x: int, y: int) -> None:
+        state.x = int(x)
+        state.y = int(y)
+        persist()
+
+    def on_resized(width: int, height: int) -> None:
+        state.width = int(width)
+        state.height = int(height)
+        persist()
+
+    def on_maximized() -> None:
+        state.maximized = True
+        persist()
+
+    def on_restored() -> None:
+        state.maximized = False
+        persist()
+
+    def on_loaded() -> None:
+        win = webview.active_window()
+        if not win:
+            return
+        try:
+            current = win.get_current_url()
+        except Exception:
+            current = None
+        if current:
+            state.url = sanitize_local_url(current, port=PORT)
+            persist()
+
     def on_closed() -> None:
+        persist()
         if runtime is not None:
             runtime.stop()
 
+    window.events.moved += on_moved
+    window.events.resized += on_resized
+    window.events.maximized += on_maximized
+    window.events.restored += on_restored
+    window.events.loaded += on_loaded
     window.events.closed += on_closed
-    menu = [
-        Menu(
-            t("menu_shop"),
-            [
-                MenuAction(t("open_till"), show_till),
-                MenuAction(t("open_shop"), show_shop),
-                MenuSeparator(),
-                MenuAction(t("save"), save_copy),
-                MenuAction(t("load"), load_copy),
-                MenuSeparator(),
-                MenuAction(t("copy"), copy_lan),
-                MenuAction(t("stop"), stop),
-            ],
-        )
+
+    file_items = [
+        MenuAction(t("save"), save_copy),
+        MenuAction(t("load"), load_copy),
+        MenuSeparator(),
+        MenuAction(t("print"), print_page),
+        MenuAction(t("copy"), copy_lan),
     ]
-    gui = "edgechromium" if sys.platform == "win32" else None
-    webview.start(menu=menu, gui=gui)
+    shop_items = [
+        MenuAction(t("open_till"), show_till),
+        MenuAction(t("open_shop"), show_shop),
+    ]
+    if sys.platform == "darwin":
+        menu = [
+            Menu("__app__", [MenuAction(t("about"), show_about)]),
+            Menu(t("menu_file"), file_items),
+            Menu(t("menu_shop"), shop_items),
+        ]
+    else:
+        menu = [
+            Menu(
+                t("menu_file"),
+                [*file_items, MenuSeparator(), MenuAction(t("stop"), stop)],
+            ),
+            Menu(t("menu_view"), [MenuAction(t("fullscreen"), fullscreen)]),
+            Menu(t("menu_shop"), shop_items),
+            Menu(t("menu_help"), [MenuAction(t("about"), show_about)]),
+        ]
+
+    icon = app_icon_file(bundle_root())
+    start_kwargs = webview_start_kwargs(
+        data_dir,
+        gui="edgechromium" if sys.platform == "win32" else None,
+        icon=str(icon) if icon else None,
+    )
+    webview.start(
+        menu=menu,
+        localization={
+            "global.quitConfirmation": t("quit_confirm"),
+            "global.quit": t("stop"),
+            "global.cancel": t("cancel"),
+            "cocoa.menu.about": t("about"),
+        },
+        **start_kwargs,
+    )
 
 
 def run_gui(runtime: ShopRuntime) -> None:
@@ -492,7 +636,10 @@ def main() -> None:
     _attach_stdio()
     _unblock_windows_dlls()
     _backend_on_path()
+    from app.desktop import set_windows_app_id
     from app.paths import is_frozen, sqlite_path, user_data_dir
+
+    set_windows_app_id()
 
     os.chdir(user_data_dir() if is_frozen() else Path(__file__).resolve().parents[1])
     sqlite_path()

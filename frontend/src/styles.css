@@ -1071,6 +1071,58 @@ th {
   }
 }
 
+html.desktop-app {
+  --bottom: 24px;
+  --sans: system-ui, "Segoe UI", "Source Sans 3", sans-serif;
+}
+
+html.desktop-mac {
+  --sans: -apple-system, BlinkMacSystemFont, "Source Sans 3", sans-serif;
+}
+
+html.desktop-win {
+  --sans: "Segoe UI", system-ui, "Source Sans 3", sans-serif;
+}
+
+html.desktop-app .bottom-nav {
+  display: none;
+}
+
+html.desktop-app .app-shell {
+  padding: 28px 24px 32px;
+}
+
+html.desktop-app .desktop-only {
+  display: flex;
+}
+
+html.desktop-app .app-shell.side {
+  grid-template-columns: 220px 1fr;
+  align-items: start;
+}
+
+html.desktop-app .sidebar {
+  position: sticky;
+  top: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+html.desktop-app .sidebar a {
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--ink-soft);
+}
+
+html.desktop-app .sidebar a.active {
+  background: var(--forest);
+  color: #f7f3ea;
+}
+
+html.desktop-app .side > div > .topbar {
+  display: none;
+}
+
 @media print {
   @page {
     size: 2.5in auto;

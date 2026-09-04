@@ -6,7 +6,7 @@ A one-stop shop on **SQLite**: shoppers create a **purchase order**, **place** i
 
 Non-technical staff: see **[Start here.txt](Start%20here.txt)**.
 
-**Packaged app (no Python):** GitHub Actions builds `Toko Bangunan Makmur.exe` (Windows) and `Toko Bangunan Makmur.app` (Mac). Those are real desktop windows (Edge WebView2 / macOS WKWebView), not a browser tab. Download the zip from the **Build shop apps** workflow artifacts, unzip, double-click. Leave the window open. Phones on Wi‑Fi still use the shop page in the phone browser.
+**Packaged app (no Python):** GitHub Actions builds `Toko Bangunan Makmur.exe` (Windows) and `Toko Bangunan Makmur.app` (Mac). Those are real desktop windows (Edge WebView2 / macOS WKWebView), not a browser tab. Download the zip from the **Build shop apps** workflow artifacts, unzip, double-click. Leave the window open. The window size is remembered, staff stay signed in, and the File / Shop menus cover save/open copy, print, till, and shop floor. Phones on Wi‑Fi still use the shop page in the phone browser.
 
 **From source:** install [Python 3](https://www.python.org/downloads/) once (Windows: tick **Add python.exe to PATH**), then double-click **`Start Toko Bangunan Makmur.command`** (Mac) or **`Start Toko Bangunan Makmur.bat`** (Windows).
 

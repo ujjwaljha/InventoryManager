@@ -14,9 +14,10 @@ EASIEST: use the real app (no Python)
    • Mac: Toko Bangunan Makmur.app
      First time: right-click → Open → Open
 4. The till opens in the app window (not Chrome or Edge). Leave it open while you sell.
-   Sign in with username **admin** and password **makmur**.
-   You never need to install Python.
-   Menu Toko: Kasir, Lantai toko, Simpan / Buka salinan.
+   Sign in once with username **admin** and password **makmur**. You stay signed in next time.
+   The window size comes back as you left it. You never need to install Python.
+   Menus: File (Save / Open copy, Print), Shop (Till, Shop floor).
+   On a Mac, Till is also ⌘1 and Shop floor is ⌘2. On Windows, use Ctrl+1 / Ctrl+2.
    Sales agent on the till is optional (Andi / Rina, or none).
    Phones still open the shop in the phone browser on the same Wi‑Fi.
    Windows: if the first open fails, right-click the zip → Properties → Unblock,
@@ -53,7 +54,8 @@ Toko Bangunan Makmur — untuk toko (bukan untuk programmer)
 
 Paling mudah: pakai Toko Bangunan Makmur.exe (Windows) atau Toko Bangunan Makmur.app (Mac).
 Tidak perlu memasang Python. Unzip, klik dua kali, biarkan jendela tetap terbuka.
-Masuk: nama pengguna **admin**, kata sandi **makmur**.
+Masuk sekali: nama pengguna **admin**, kata sandi **makmur**. Tetap masuk lain kali.
+Ukuran jendela diingat. Menu Berkas / Toko: Simpan salinan, Buka salinan, Cetak, Kasir, Lantai toko.
 
 Wi-Fi: HP di Wi-Fi yang sama, pindai kode QR di kasir.
 Bluetooth / AirDrop / USB: Simpan salinan, kirim berkas, lalu Buka salinan.
