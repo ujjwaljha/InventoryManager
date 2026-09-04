@@ -42,6 +42,8 @@ Then open:
 
 The first start creates `data/inventory.db` and seeds a sample **building materials** catalog (cement, rebar, paint, pipes, and so on).
 
+**Sign in:** the app is locked. Default staff is `admin` / `makmur`. `andi` / `makmur` and `rina` / `makmur` are optional sales agents. Add or change accounts under Settings. A later catalog price change does not rewrite receipts that were already issued.
+
 The shop and till support **English** and **Indonesian** (switch **EN | ID** in the header; default is Indonesian). Money is **Indonesian Rupiah (IDR)**, shown as `Rp` with no decimals (for example `Rp 65.000`).
 
 Back office can **restock from a supplier** (FIFO cost layers), sell at the till with a **2.5 inch thermal receipt**, look up receipts by number or customer mobile, record **damage** and **supplier returns**, and run **daily / item / category P&L** using FIFO COGS.
@@ -76,8 +78,8 @@ cd backend && python3 -m pytest
 
 **Operators** (`/`)
 
-- **Till:** walk-in sale with salesperson, customer name and mobile; prints a 2.5 inch thermal receipt
-- **Items:** on-hand quantity, FIFO COGS, selling price, category
+- **Till:** walk-in sale; salesperson is optional (pick a sales agent or none); prints a 2.5 inch thermal receipt
+- **Items:** on-hand quantity, FIFO COGS, selling price, category. Changing a sell price does not change older receipts.
 - **Restock:** supplier purchasing that adds stock and FIFO cost layers
 - **Receipts:** look up by receipt number or customer mobile
 - **Reports:** daily sales, item P&L with profit margin %, category performance, stock value

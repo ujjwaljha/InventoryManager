@@ -1,7 +1,8 @@
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { AuthGate, useAuth } from "./auth";
 import { LanguageSwitch, useI18n } from "./i18n";
 import { api, ApiError } from "./api";
-import { OpNav, PinUnlock, ShopNav } from "./components/ui";
+import { OpNav, ShopNav } from "./components/ui";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "./components/CartPane";
 import { OpDashboard, OpInvoices, OpItems, OpOrders } from "./pages/OpPages";
 import { OpInvoiceDetail, OpItemDetail, OpNewItem, OpSettings } from "./pages/OpDetailPages";
@@ -47,6 +48,7 @@ function useShopName() {
 
 function ShopShell() {
   const { t, pick } = useI18n();
+  const { user, logout } = useAuth();
   const name = useShopName();
   const [shopper, setShopper] = useState<Shopper | null>(null);
   const [po, setPo] = useState<PurchaseOrder | null>(null);
@@ -146,6 +148,10 @@ function ShopShell() {
         </div>
         <div className="row" style={{ gap: 10 }}>
           <LanguageSwitch />
+          {user ? <span className="muted desktop-only">{user.display_name}</span> : null}
+          <button className="btn ghost" type="button" onClick={() => logout()}>
+            {t("logout")}
+          </button>
           {shopper ? (
             <button className="btn ghost" type="button" onClick={() => setSwitching(true)}>
               {shopper.name} · {t("changeCustomer")}
@@ -231,22 +237,8 @@ function OpShell() {
   const { t } = useI18n();
   const loc = useLocation();
   const name = useShopName();
-  const [gate, setGate] = useState<{ required: boolean; unlocked: boolean } | null>(null);
+  const { user, logout } = useAuth();
   const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
-
-  useEffect(() => {
-    api<{ required: boolean; unlocked: boolean }>("/api/operator/status")
-      .then(setGate)
-      .catch(() => setGate({ required: false, unlocked: true }));
-  }, [loc.pathname]);
-
-  if (gate?.required && !gate.unlocked) {
-    return (
-      <div className="app-shell">
-        <PinUnlock onUnlocked={() => setGate({ required: true, unlocked: true })} />
-      </div>
-    );
-  }
 
   return (
     <div className="app-shell side">
@@ -294,12 +286,19 @@ function OpShell() {
         <div style={{ marginTop: 12 }}>
           <LanguageSwitch />
         </div>
+        {user ? <div className="muted" style={{ marginTop: 10 }}>{user.display_name}</div> : null}
+        <button className="btn ghost" type="button" style={{ marginTop: 8 }} onClick={() => logout()}>
+          {t("logout")}
+        </button>
       </aside>
       <div>
         <header className="topbar">
           <Brand to="/" kicker={t("backOffice")} name={name} />
           <div className="row">
             <LanguageSwitch />
+            <button className="btn ghost" type="button" onClick={() => logout()}>
+              {t("logout")}
+            </button>
             <NavLink to="/shop" className="btn ghost">
               {t("openShop")}
             </NavLink>
@@ -337,6 +336,5 @@ function OpShell() {
 
 export default function App() {
   const loc = useLocation();
-  if (loc.pathname.startsWith("/shop")) return <ShopShell />;
-  return <OpShell />;
+  return <AuthGate>{loc.pathname.startsWith("/shop") ? <ShopShell /> : <OpShell />}</AuthGate>;
 }

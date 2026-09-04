@@ -390,117 +390,35 @@ export function StatusTag({ status }: { status: string }) {
   return <span className={`tag ${status}`}>{t(key)}</span>;
 }
 
-export function PinUnlock({ onUnlocked }: { onUnlocked: () => void }) {
+export function SalesAgentSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const { t } = useI18n();
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api("/api/operator/unlock", { method: "POST", body: JSON.stringify({ pin }) });
-      onUnlocked();
-    } catch {
-      setError(t("pinWrong"));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [agents, setAgents] = useState<{ id: number; display_name: string; username: string }[]>([]);
+  useEffect(() => {
+    api<{ id: number; display_name: string; username: string }[]>("/api/sales-agents")
+      .then(setAgents)
+      .catch(() => setAgents([]));
+  }, []);
+  const extra = value && !agents.some((a) => a.display_name === value);
   return (
-    <form className="card form-grid" onSubmit={submit} style={{ maxWidth: 360, margin: "48px auto" }}>
-      <h2 style={{ margin: 0 }}>{t("pinRequired")}</h2>
-      <p className="muted">{t("pinHint")}</p>
-      {error && <div className="banner">{error}</div>}
-      <label>
-        {t("enterPin")}
-        <input
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-          inputMode="numeric"
-          autoComplete="off"
-          autoFocus
-        />
-      </label>
-      <button className="btn" type="submit" disabled={busy || pin.length < 4}>
-        {t("unlock")}
-      </button>
-    </form>
-  );
-}
-
-export function PinSettings({ pinSet, onChange }: { pinSet: boolean; onChange?: () => void }) {
-  const { t } = useI18n();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [note, setNote] = useState("");
-  const [error, setError] = useState("");
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    setNote("");
-    try {
-      await api("/api/operator/pin", {
-        method: "POST",
-        body: JSON.stringify({ pin: next, current_pin: current }),
-      });
-      setNote(t("pinSet"));
-      setCurrent("");
-      setNext("");
-      onChange?.();
-    } catch {
-      setError(t("pinWrong"));
-    }
-  }
-  async function remove() {
-    setError("");
-    setNote("");
-    try {
-      await api("/api/operator/pin/clear", { method: "POST", body: JSON.stringify({ pin: current }) });
-      setNote(t("pinRemoved"));
-      setCurrent("");
-      onChange?.();
-    } catch {
-      setError(t("pinWrong"));
-    }
-  }
-  async function lock() {
-    await api("/api/operator/lock", { method: "POST" });
-    window.location.reload();
-  }
-  return (
-    <form className="card form-grid" onSubmit={save}>
-      <h3 style={{ margin: 0 }}>{t("operatorPin")}</h3>
-      <p className="muted">{t("pinHint")}</p>
-      {error && <div className="banner">{error}</div>}
-      {pinSet ? (
-        <label>
-          {t("currentPin")}
-          <input value={current} onChange={(e) => setCurrent(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" autoComplete="off" />
-        </label>
-      ) : null}
-      <label>
-        {t("newPin")}
-        <input value={next} onChange={(e) => setNext(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" autoComplete="off" />
-      </label>
-      <div className="row">
-        <button className="btn" type="submit" disabled={next.length < 4}>
-          {pinSet ? t("changePin") : t("setPin")}
-        </button>
-        {pinSet ? (
-          <>
-            <button className="btn ghost" type="button" onClick={remove} disabled={current.length < 4}>
-              {t("removePin")}
-            </button>
-            <button className="btn ghost" type="button" onClick={lock}>
-              {t("lockOffice")}
-            </button>
-          </>
-        ) : null}
-      </div>
-      {note && <p className="muted">{note}</p>}
-    </form>
+    <label>
+      {t("salesAgent")}
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{t("noSalesAgent")}</option>
+        {extra ? <option value={value}>{value}</option> : null}
+        {agents.map((a) => (
+          <option key={a.id} value={a.display_name}>
+            {a.display_name}
+          </option>
+        ))}
+      </select>
+      <span className="muted">{t("salesAgentOptional")}</span>
+    </label>
   );
 }
 

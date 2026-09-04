@@ -3,14 +3,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from helpers import login, make_client
 
 
 @pytest.fixture
 def client(tmp_path: Path) -> TestClient:
-    db = tmp_path / "test.db"
-    app = create_app(f"sqlite:///{db}")
-    return TestClient(app)
+    return make_client(tmp_path)
 
 
 def test_health(client: TestClient):
@@ -370,6 +368,7 @@ def test_shop_invoice_mark_paid_and_cancel(client: TestClient):
     blocked = client.post(f"/api/shop/invoices/{inv_id}/cancel")
     assert blocked.status_code == 400
     other = TestClient(client.app)
+    login(other)
     other.post("/api/shop/session", json={"name": "Other", "phone": "9000000045"})
     stolen = other.post(f"/api/shop/invoices/{inv_id}/unpay")
     assert stolen.status_code == 404
@@ -415,3 +414,58 @@ def test_shop_po_survives_second_open_draft(client: TestClient):
     assert body["status"] == "draft"
     assert len(body["lines"]) == 1
     assert body["lines"][0]["quantity"] == 2
+
+
+def test_item_price_change_does_not_change_old_invoice(client: TestClient):
+    nails = next(i for i in client.get("/api/items").json() if i["sku"] == "NAL-1")
+    old_price = nails["unit_price_cents"]
+    sale = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "",
+            "customer_name": "Pak Lama",
+            "customer_phone": "081399900099",
+            "lines": [{"item_id": nails["id"], "quantity": 2}],
+            "paid": True,
+        },
+    )
+    assert sale.status_code == 200, sale.text
+    inv = sale.json()
+    assert inv["lines"][0]["unit_price_cents"] == old_price
+    assert inv["salesperson_name"] == ""
+    old_total = inv["total_cents"]
+    patched = client.patch(
+        f"/api/items/{nails['id']}",
+        json={"unit_price_cents": old_price + 500000},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["unit_price_cents"] == old_price + 500000
+    reprint = client.get(f"/api/invoices/{inv['id']}")
+    assert reprint.status_code == 200, reprint.text
+    body = reprint.json()
+    assert body["lines"][0]["unit_price_cents"] == old_price
+    assert body["total_cents"] == old_total
+    catalog = next(i for i in client.get("/api/items").json() if i["id"] == nails["id"])
+    assert catalog["unit_price_cents"] == old_price + 500000
+
+
+def test_open_cart_keeps_line_price_when_catalog_changes(client: TestClient):
+    nails = next(i for i in client.get("/api/shop/catalog").json() if i["sku"] == "NAL-1")
+    old_price = nails["unit_price_cents"]
+    client.post("/api/shop/session", json={"name": "Cart Price", "phone": "9000000099"})
+    added = client.post("/api/shop/po/lines", json={"item_id": nails["id"], "quantity": 1})
+    assert added.status_code == 200, added.text
+    assert added.json()["lines"][0]["unit_price_cents"] == old_price
+    client.patch(f"/api/items/{nails['id']}", json={"unit_price_cents": old_price + 250000})
+    bumped = client.post("/api/shop/po/lines", json={"item_id": nails["id"], "quantity": 2})
+    assert bumped.status_code == 200, bumped.text
+    assert bumped.json()["lines"][0]["unit_price_cents"] == old_price
+    placed = client.post("/api/shop/po/place", json={"note": "", "paid": True, "salesperson_name": "Andi"})
+    assert placed.status_code == 200, placed.text
+    invoice = placed.json()["invoice"]
+    assert invoice["lines"][0]["unit_price_cents"] == old_price
+    assert invoice["salesperson_name"] == "Andi"
+    reprint = client.get(f"/api/invoices/{invoice['id']}").json()
+    assert reprint["lines"][0]["unit_price_cents"] == old_price
+    assert reprint["total_cents"] == invoice["total_cents"]
+

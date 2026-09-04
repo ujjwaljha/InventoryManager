@@ -255,10 +255,8 @@ def upsert_line(
         )
     else:
         line.quantity = quantity
-        line.sku = item.sku
-        line.name = item.name
-        line.name_id = item.name_id or item.name
-        line.unit_price_cents = item.unit_price_cents
+        # Keep sku/name/price from when the line was added so a later catalog
+        # change does not rewrite an open cart or an older order.
     po.updated_at = utcnow()
     db.flush()
     db.expire(po, ["lines"])
@@ -367,10 +365,8 @@ def place_order(
     subtotal = 0
     for line in po.lines:
         item = live_items[line.item_id]
-        line.sku = item.sku
-        line.name = item.name
-        line.name_id = item.name_id or item.name
-        line.unit_price_cents = item.unit_price_cents
+        # Invoice lines copy the cart snapshot. Catalog price changes after
+        # this sale must not rewrite older receipts.
         mov = apply_movement(
             db,
             item_id=item.id,

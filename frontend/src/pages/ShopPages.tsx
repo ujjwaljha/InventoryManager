@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { ScanButton } from "../components/BarcodeScanner";
-import { IdentifyForm } from "../components/ui";
+import { IdentifyForm, SalesAgentSelect } from "../components/ui";
+import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel } from "../money";
 import { matchScannedCode, shortScanCode } from "../sku";
@@ -277,20 +278,39 @@ export function ShopCart({
   cartRev?: number;
 }) {
   const { t, pick, locale } = useI18n();
+  const { user } = useAuth();
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [shortages, setShortages] = useState<Shortage[]>([]);
   const [paidNow, setPaidNow] = useState(true);
-  const [salesperson, setSalesperson] = useState(() => {
+  const [salesperson, setSalesperson] = useState<string | null>(() => {
     try {
-      return localStorage.getItem("im_salesperson") || "";
+      return localStorage.getItem("im_salesperson");
     } catch {
       return "";
     }
   });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (salesperson !== null) return;
+    if (user?.is_sales_agent) {
+      setSalesperson(user.display_name);
+      return;
+    }
+    if (user) setSalesperson("");
+  }, [user, salesperson]);
+
+  useEffect(() => {
+    if (salesperson === null) return;
+    try {
+      localStorage.setItem("im_salesperson", salesperson);
+    } catch {
+      /* ignore */
+    }
+  }, [salesperson]);
 
   async function load() {
     if (!shopper) return;
@@ -348,7 +368,7 @@ export function ShopCart({
     try {
       const placed = await api<PurchaseOrder>("/api/shop/po/place", {
         method: "POST",
-        body: JSON.stringify({ note, paid: paidNow, salesperson_name: salesperson }),
+        body: JSON.stringify({ note, paid: paidNow, salesperson_name: salesperson || "" }),
       });
       onCartChange();
       if (placed.invoice) navigate(`/shop/invoices/${placed.invoice.id}`);
@@ -453,23 +473,7 @@ export function ShopCart({
           </div>
         </div>
       ))}
-      <label className="muted">
-        {t("salesperson")}
-        <input
-          className="search"
-          style={{ marginTop: 6 }}
-          value={salesperson}
-          onChange={(e) => {
-            setSalesperson(e.target.value);
-            try {
-              localStorage.setItem("im_salesperson", e.target.value);
-            } catch {
-              /* ignore */
-            }
-          }}
-          placeholder={t("salespersonPlaceholder")}
-        />
-      </label>
+      <SalesAgentSelect value={salesperson || ""} onChange={setSalesperson} />
       <label className="muted">
         {t("noteForShop")}
         <input className="search" style={{ marginTop: 6 }} value={note} onChange={(e) => setNote(e.target.value)} />
