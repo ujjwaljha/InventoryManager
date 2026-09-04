@@ -96,11 +96,24 @@ def test_receipt_search_by_number_and_phone(client: TestClient):
     ).json()
     number = sale["number"]
     by_number = client.get("/api/receipts", params={"q": number}).json()
-    assert any(r["number"] == number for r in by_number)
+    assert any(r["number"] == number for r in by_number["items"])
     by_phone = client.get("/api/invoices", params={"q": "081355512345"}).json()
-    assert any(r["number"] == number for r in by_phone)
+    assert any(r["number"] == number for r in by_phone["items"])
     by_partial = client.get("/api/receipts", params={"q": "555123"}).json()
-    assert any(r["number"] == number for r in by_partial)
+    assert any(r["number"] == number for r in by_partial["items"])
+    by_item = client.get("/api/receipts", params={"q": "NAL-1"}).json()
+    assert any(r["number"] == number for r in by_item["items"])
+    by_name = client.get("/api/receipts", params={"q": "Ani"}).json()
+    assert any(r["number"] == number for r in by_name["items"])
+    by_agent = client.get("/api/receipts", params={"q": "Rina"}).json()
+    assert any(r["number"] == number for r in by_agent["items"])
+    page = client.get("/api/receipts", params={"limit": 1, "offset": 0}).json()
+    assert page["limit"] == 1
+    assert page["offset"] == 0
+    assert page["total"] >= 1
+    assert len(page["items"]) == 1
+    orders = client.get("/api/orders", params={"q": "NAL-1"}).json()
+    assert any(row["invoice"] and row["invoice"]["number"] == number for row in orders["items"])
 
 
 def test_damage_and_supplier_return_update_stock_and_ledger(client: TestClient):

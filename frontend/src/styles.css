@@ -108,6 +108,90 @@ textarea {
   align-items: center;
 }
 
+.card.row {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card.row > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.card.row > :first-child b,
+.card.row > :first-child h3 {
+  overflow-wrap: anywhere;
+}
+
+.card.row .price {
+  max-width: 48%;
+}
+
+.split {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.row.split {
+  flex-wrap: nowrap;
+}
+
+.split > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.split-amount {
+  flex: 0 0 auto;
+  text-align: right;
+  max-width: 48%;
+  overflow-wrap: anywhere;
+}
+
+.finder-filters {
+  display: grid;
+  gap: 10px;
+}
+
+.finder-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.finder-dates label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.finder-dates input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: white;
+}
+
+@media (max-width: 520px) {
+  .finder-dates {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .grid {
   display: grid;
   gap: 14px;
@@ -129,14 +213,18 @@ textarea {
 
 .kpi {
   min-width: 140px;
-  flex: 1;
+  flex: 1 1 140px;
+  overflow: hidden;
 }
 
 .kpi b {
   display: block;
   font-family: var(--serif);
-  font-size: 1.6rem;
+  font-size: clamp(1.05rem, 2.6vw, 1.55rem);
+  line-height: 1.2;
   margin-top: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .sku {
@@ -149,6 +237,10 @@ textarea {
 .price {
   font-family: var(--serif);
   font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
 }
 
 .stock {
@@ -689,6 +781,8 @@ th {
 .thermal-line > span:first-child {
   min-width: 0;
   flex: 1;
+  padding-right: 8px;
+  overflow-wrap: anywhere;
 }
 
 .thermal-line > span:last-child {
@@ -718,6 +812,20 @@ th {
   box-shadow: var(--shadow);
   max-width: 720px;
   margin: 0 auto;
+}
+
+.invoice-sheet header.row {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.invoice-sheet header.row > :first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.invoice-sheet header.row > :first-child h1 {
+  overflow-wrap: anywhere;
 }
 
 .invoice-sheet h1 {

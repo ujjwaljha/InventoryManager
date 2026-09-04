@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
 import { ItemPicker, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
@@ -9,55 +10,59 @@ import type { CreditReport, DamageNote, Invoice, Item, SupplierReturn } from "..
 type PickLine = { item: Item; quantity: number };
 
 export function ReceiptsPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [q, setQ] = useState("");
-  const [rows, setRows] = useState<Invoice[]>([]);
+  const [status, setStatus] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [page, setPage] = useState<PageResult<Invoice> | null>(null);
   const [error, setError] = useState("");
+  const needle = useDebounced(q);
 
-  async function search(needle = q) {
+  async function load(nextOffset = offset, nextQ = needle) {
     setError("");
-    try {
-      const path = needle.trim() ? `/api/receipts?q=${encodeURIComponent(needle.trim())}` : "/api/invoices";
-      setRows(await api<Invoice[]>(path));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("couldNotAdd"));
-    }
+    const qs = buildQuery({
+      q: nextQ.trim(),
+      status,
+      date_from: dateFrom,
+      date_to: dateTo,
+      limit: PAGE_SIZE,
+      offset: nextOffset,
+    });
+    setPage(await api<PageResult<Invoice>>(`/api/receipts${qs}`));
   }
 
   useEffect(() => {
-    search("");
-  }, []);
+    setOffset(0);
+  }, [needle, status, dateFrom, dateTo]);
+
+  useEffect(() => {
+    load(offset, needle).catch((e) => setError(e instanceof Error ? e.message : t("couldNotAdd")));
+  }, [needle, status, dateFrom, dateTo, offset, t]);
 
   return (
     <div className="grid">
       <h2 style={{ margin: 0 }}>{t("lookUpReceipt")}</h2>
-      <p className="muted">{t("lookUpHint")}</p>
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          search();
-        }}
-      >
-        <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchReceipt")} />
-        <button className="btn" type="submit">
-          {t("findReceipt")}
-        </button>
-      </form>
+      <FinderBar
+        q={q}
+        onQ={setQ}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFrom={setDateFrom}
+        onDateTo={setDateTo}
+        statuses={["issued", "paid", "void"]}
+        status={status}
+        onStatus={setStatus}
+        hint={t("lookUpHint")}
+        onSubmit={() => load(0, q)}
+      />
       {error && <div className="banner">{error}</div>}
-      {rows.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {rows.map((inv) => (
-        <Link className="card row" key={inv.id} to={`/receipts/${inv.id}`} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{inv.number}</b> <StatusTag status={inv.status} />
-            <div className="muted">
-              {inv.shopper_name} · {inv.shopper_phone} · {when(inv.issued_at, locale)}
-            </div>
-            {inv.salesperson_name ? <div className="muted">{t("soldBy")}: {inv.salesperson_name}</div> : null}
-          </div>
-          <div className="price">{money(inv.total_cents, inv.currency_symbol)}</div>
-        </Link>
+      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
+      {page?.items.map((inv) => (
+        <InvoiceResultCard key={inv.id} invoice={inv} />
       ))}
+      {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
 }
@@ -255,7 +260,7 @@ export function CreditPage() {
       {customers.length === 0 && <p className="muted">{t("noCredit")}</p>}
       {customers.map((c) => (
         <section className="card" key={c.shopper_id}>
-          <div className="row" style={{ justifyContent: "space-between" }}>
+          <div className="row split" style={{ justifyContent: "space-between" }}>
             <div>
               <b>{c.shopper_name}</b>
               <div className="muted">{c.shopper_phone}</div>
@@ -266,13 +271,13 @@ export function CreditPage() {
                 {t("printReminder")}
               </button>
             </div>
-            <div className="price">{money(c.unpaid_cents, data.currency_symbol)}</div>
+            <div className="price split-amount">{money(c.unpaid_cents, data.currency_symbol)}</div>
           </div>
           {data.invoices
             .filter((inv) => inv.shopper_id === c.shopper_id)
             .filter((inv) => filter === "all" || (inv.overdue_days || 0) > 0)
             .map((inv) => (
-              <Link key={inv.id} className="row" to={`/receipts/${inv.id}`} style={{ justifyContent: "space-between", marginTop: 8 }}>
+              <Link key={inv.id} className="row split" to={`/receipts/${inv.id}`} style={{ marginTop: 8 }}>
                 <span>
                   {inv.number} <StatusTag status={inv.status} />
                   {inv.due_date ? (
@@ -288,7 +293,7 @@ export function CreditPage() {
                     </span>
                   ) : null}
                 </span>
-                <span>{money(inv.balance_cents ?? inv.total_cents, inv.currency_symbol)}</span>
+                <span className="split-amount">{money(inv.balance_cents ?? inv.total_cents, inv.currency_symbol)}</span>
               </Link>
             ))}
           {(c.notes || []).length > 0 && (

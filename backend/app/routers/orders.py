@@ -1,34 +1,26 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db, raise_checkout
-from app.models import CreditNote, Invoice, PurchaseOrder, Shopper
+from app.models import CreditNote, Invoice, Shopper
 from app.schemas import CounterOrderIn, CreditNoteIn, InvoiceDueIn, PaymentIn, PlaceIn, PoLineIn, ShopperPatch
 from app.serialize import invoice_out, po_out_with_settings
 from app.qty import to_store
 from app.services import checkout as chk
+from app.services.lookup import parse_day, search_invoices, search_orders
 from app.timeutil import age_days, aging_bucket, overdue_days, today_shop, utcnow
 
 router = APIRouter(prefix="/api", tags=["orders"])
 
 
-def _load_orders(db: Session, status: str | None):
-    stmt = (
-        select(PurchaseOrder)
-        .options(
-            selectinload(PurchaseOrder.lines),
-            selectinload(PurchaseOrder.shopper),
-            selectinload(PurchaseOrder.invoice).selectinload(Invoice.lines),
-            selectinload(PurchaseOrder.invoice).selectinload(Invoice.shopper),
-        )
-        .order_by(PurchaseOrder.created_at.desc())
-    )
-    if status:
-        stmt = stmt.where(PurchaseOrder.status == status)
-    return list(db.execute(stmt).scalars())
+def _day_or_400(raw: str | None) -> str | None:
+    try:
+        return parse_day(raw)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD") from err
 
 
 @router.get("/shoppers")
@@ -77,8 +69,24 @@ def patch_shopper(shopper_id: int, body: ShopperPatch, db: Session = Depends(get
 
 
 @router.get("/orders")
-def list_orders(status: str | None = Query(default=None), db: Session = Depends(get_db)):
-    return [po_out_with_settings(db, po) for po in _load_orders(db, status)]
+def list_orders(
+    q: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return search_orders(
+        db,
+        q=q,
+        status=status,
+        date_from=_day_or_400(date_from),
+        date_to=_day_or_400(date_to),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/orders/{order_id}")
@@ -161,34 +169,42 @@ def operator_cancel(order_id: int, db: Session = Depends(get_db)):
 def list_invoices(
     status: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    stmt = (
-        select(Invoice)
-        .options(
-            selectinload(Invoice.lines),
-            selectinload(Invoice.shopper),
-            selectinload(Invoice.purchase_order),
-            selectinload(Invoice.payments),
-        )
-        .order_by(Invoice.issued_at.desc())
+    return search_invoices(
+        db,
+        q=q,
+        status=status,
+        date_from=_day_or_400(date_from),
+        date_to=_day_or_400(date_to),
+        limit=limit,
+        offset=offset,
     )
-    if status:
-        stmt = stmt.where(Invoice.status == status)
-    if q:
-        needle = q.strip()
-        digits = "".join(ch for ch in needle if ch.isdigit())
-        stmt = stmt.join(Invoice.shopper)
-        clauses = [Invoice.number.ilike(f"%{needle}%"), Shopper.name.ilike(f"%{needle}%")]
-        if digits:
-            clauses.append(Shopper.phone.contains(digits))
-        stmt = stmt.where(or_(*clauses))
-    return [invoice_out(inv) for inv in db.execute(stmt).scalars()]
 
 
 @router.get("/receipts")
-def search_receipts(q: str | None = Query(default=None), db: Session = Depends(get_db)):
-    return list_invoices(status=None, q=q, db=db)
+def search_receipts(
+    q: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return search_invoices(
+        db,
+        q=q,
+        status=status,
+        date_from=_day_or_400(date_from),
+        date_to=_day_or_400(date_to),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/credit")
