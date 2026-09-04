@@ -399,6 +399,12 @@ const STRINGS = {
     aging60: "61–90 days",
     aging90: "Over 90 days",
     daysOld: "{days} days",
+    navSales: "Sales",
+    navStock: "Stock",
+    navOffice: "Office",
+    addItems: "Add items",
+    checkout: "Checkout",
+    shopProfile: "Shop profile",
   },
   id: {
     shopNameFallback: "Toko Bangunan Makmur",
@@ -796,6 +802,12 @@ const STRINGS = {
     aging60: "61–90 hari",
     aging90: "Lebih 90 hari",
     daysOld: "{days} hari",
+    navSales: "Penjualan",
+    navStock: "Stok",
+    navOffice: "Kantor",
+    addItems: "Tambah barang",
+    checkout: "Bayar",
+    shopProfile: "Profil toko",
   },
 } as const;
 

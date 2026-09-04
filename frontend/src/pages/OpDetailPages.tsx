@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { InvoiceSheet, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
+import { DocToolbar, InvoiceSheet, PageHeader, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
 import { UserAdmin } from "../auth";
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
@@ -100,34 +100,40 @@ export function OpItemDetail() {
 
   return (
     <div className="grid">
-      <Link to="/items">{t("backItems")}</Link>
+      <PageHeader
+        kicker={item.sku}
+        title={pick(item.name, item.name_id)}
+        hint={
+          item.archived
+            ? t("itemHidden")
+            : t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })
+        }
+        actions={
+          <Link className="btn ghost" to="/items">
+            {t("backItems")}
+          </Link>
+        }
+      />
       {error && <div className="banner">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
-      <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div className="sku">{item.sku}</div>
-            <h2 style={{ margin: "4px 0" }}>{pick(item.name, item.name_id)}</h2>
-            {item.archived ? <div className="stock low">{t("itemHidden")}</div> : null}
-            <p className="price" style={{ margin: 0 }}>
-              {t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })}
-            </p>
-            {(item.reserved || 0) > 0 ? (
-              <p className="muted">
-                {t("sellable")} {formatQty(item.available ?? item.quantity)} · {t("heldInCart", { qty: formatQty(item.reserved || 0) })}
-              </p>
-            ) : null}
+      <div className="card item-hero">
+        <div className="item-hero-copy">
+          {item.archived ? <div className="stock low">{t("itemHidden")}</div> : null}
+          {(item.reserved || 0) > 0 ? (
             <p className="muted">
-              {t("fifoCogs")}: {money(item.fifo_cogs_cents || item.unit_cost_cents)} · {t("stockValue")}{" "}
-              {money(item.inventory_value_cents || 0)}
+              {t("sellable")} {formatQty(item.available ?? item.quantity)} · {t("heldInCart", { qty: formatQty(item.reserved || 0) })}
             </p>
-            {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
-          </div>
-          <figure className="sku-qr-wrap">
-            <img className="sku-qr" src={`/api/items/${item.id}/sku-qr`} alt={t("skuQrAlt", { sku: item.sku })} />
-            <figcaption className="muted">{t("skuQrHint")}</figcaption>
-          </figure>
+          ) : null}
+          <p className="muted" style={{ margin: 0 }}>
+            {t("fifoCogs")}: {money(item.fifo_cogs_cents || item.unit_cost_cents)} · {t("stockValue")}{" "}
+            {money(item.inventory_value_cents || 0)}
+          </p>
+          {item.low_stock && <div className="stock low">{t("belowReorder", { point: item.reorder_point })}</div>}
         </div>
+        <figure className="sku-qr-wrap">
+          <img className="sku-qr" src={`/api/items/${item.id}/sku-qr`} alt={t("skuQrAlt", { sku: item.sku })} />
+          <figcaption className="muted">{t("skuQrHint")}</figcaption>
+        </figure>
       </div>
       <form key={item.updated_at} className="card form-grid" onSubmit={save}>
         <h3 style={{ margin: 0 }}>{t("details")}</h3>
@@ -221,7 +227,7 @@ export function OpItemDetail() {
           </button>
         </div>
       </div>
-      <div className="card" style={{ overflowX: "auto" }}>
+      <div className="card table-wrap">
         <h3>{t("lots")}</h3>
         <p className="muted">{t("fifoLayers")}</p>
         <table>
@@ -314,8 +320,16 @@ export function OpNewItem() {
     }
   }
   return (
-    <form className="card form-grid" onSubmit={onSubmit}>
-      <h2 style={{ margin: 0 }}>{t("newItem")}</h2>
+    <div className="grid">
+      <PageHeader
+        title={t("newItem")}
+        actions={
+          <Link className="btn ghost" to="/items">
+            {t("backItems")}
+          </Link>
+        }
+      />
+      <form className="card form-grid" onSubmit={onSubmit}>
       {error && <div className="banner">{error}</div>}
       <label>
         {t("sku")}
@@ -384,6 +398,7 @@ export function OpNewItem() {
         {t("create")}
       </button>
     </form>
+    </div>
   );
 }
 
@@ -401,12 +416,27 @@ export function OpInvoiceDetail() {
   if (!invoice) return <p className="muted">{error || t("loading")}</p>;
   return (
     <div className="grid print-thermal">
-      <div className="row no-print">
-        <Link to="/invoices">{t("backInvoices")}</Link>
-        <button className="btn ghost" onClick={() => window.print()}>
-          {t("printThermal")}
-        </button>
-        <ShareReceiptButton invoice={invoice} />
+      <div className="no-print">
+        <PageHeader
+          kicker={invoice.number}
+          title={invoice.shopper_name || t("invoices")}
+          hint={invoice.shopper_phone}
+          actions={
+            <>
+              <Link className="btn ghost" to="/invoices">
+                {t("backInvoices")}
+              </Link>
+              <button className="btn" onClick={() => window.print()}>
+                {t("printThermal")}
+              </button>
+              <ShareReceiptButton invoice={invoice} />
+            </>
+          }
+        />
+        <p className="muted">{t("invoiceAlsoReceipt")}</p>
+      </div>
+      {invoice.status !== "void" && (
+      <DocToolbar>
         {invoice.status === "issued" && (
           <button
             className="btn"
@@ -443,8 +473,8 @@ export function OpInvoiceDetail() {
             {t("markUnpaid")}
           </button>
         )}
-      </div>
-      <p className="muted no-print">{t("invoiceAlsoReceipt")}</p>
+      </DocToolbar>
+      )}
       <ThermalReceipt invoice={invoice} />
       <div className="no-print">
         <InvoiceSheet invoice={invoice} />
@@ -486,10 +516,11 @@ export function OpSettings() {
   }
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("shopSettings")}</h2>
+      <PageHeader title={t("shopSettings")} />
       <SharePanel showRestore />
       <UserAdmin />
       <form className="card form-grid" onSubmit={onSubmit}>
+        <h3>{t("shopProfile")}</h3>
         <label>
           {t("shopName")}
           <input name="name" defaultValue={s.name} />

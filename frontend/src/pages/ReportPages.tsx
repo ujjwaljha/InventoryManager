@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { StatusTag } from "../components/ui";
+import { PageHeader, StatusTag } from "../components/ui";
+import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { formatQty, marginPct, money, monthStart, todayInput, unitLabel, weekStartMonday } from "../money";
 import type { Movement, ReportPerson, SalesReport, Settings, Shopper, StockReport } from "../types";
@@ -225,10 +226,8 @@ export function ReportsPage() {
 
   return (
     <div className="grid">
-      <div>
-        <h2 style={{ margin: 0 }}>{t("reports")}</h2>
-        <p className="muted">{t("reportsHint")}</p>
-      </div>
+      <PageHeader title={t("reports")} hint={t("reportsHint")} />
+      <div className="card filter-card">
       <div className="chips">
         {(["daily", "items", "cats", "people", "tax", "stock", "ledger"] as const).map((key) => (
           <button key={key} className={`chip ${tab === key ? "on" : ""}`} type="button" onClick={() => setTab(key)}>
@@ -287,6 +286,7 @@ export function ReportsPage() {
           ) : null}
         </>
       )}
+      </div>
       {error && <div className="banner">{error}</div>}
       {tab !== "stock" && tab !== "ledger" && sales && (
         <>
@@ -359,7 +359,7 @@ export function ReportsPage() {
             <>
               <h3>{t("taxReport")}</h3>
               {sales.receipts.length === 0 && <p className="muted">{t("noRows")}</p>}
-              <div className="card" style={{ overflowX: "auto" }}>
+              <div className="card table-wrap">
                 <table>
                   <thead>
                     <tr>
@@ -392,24 +392,28 @@ export function ReportsPage() {
           {tab === "daily" && (
             <>
               <h3>{t("receipts")}</h3>
-              {sales.receipts.length === 0 && <p className="muted">{t("noRows")}</p>}
-              {sales.receipts.map((inv) => (
-                <Link className="card row" key={inv.id} to={`/receipts/${inv.id}`} style={{ justifyContent: "space-between" }}>
-                  <div>
-                    <b>{inv.number}</b> <StatusTag status={inv.status} />
-                    <div className="muted">
-                      {inv.shopper_name} · {inv.shopper_phone}
-                    </div>
-                  </div>
-                  <div className="price">{money(inv.total_cents)}</div>
-                </Link>
-              ))}
+              {sales.receipts.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+              {sales.receipts.length > 0 ? (
+                <ResultList>
+                  {sales.receipts.map((inv) => (
+                    <Link className="result-row" key={inv.id} to={`/receipts/${inv.id}`}>
+                      <div>
+                        <b>{inv.number}</b> <StatusTag status={inv.status} />
+                        <div className="muted">
+                          {inv.shopper_name} · {inv.shopper_phone}
+                        </div>
+                      </div>
+                      <div className="price">{money(inv.total_cents)}</div>
+                    </Link>
+                  ))}
+                </ResultList>
+              ) : null}
               <h3>{t("itemsSold")}</h3>
             </>
           )}
           {(tab === "daily" || tab === "items") && (
-            <div className="card" style={{ overflowX: "auto" }}>
-              {sales.items.length === 0 && <p className="muted">{t("noRows")}</p>}
+            <div className="card table-wrap">
+              {sales.items.length === 0 && <p className="empty-state">{t("noRows")}</p>}
               <table>
                 <thead>
                   <tr>
@@ -443,7 +447,7 @@ export function ReportsPage() {
             </div>
           )}
           {tab === "cats" && (
-            <div className="card" style={{ overflowX: "auto" }}>
+            <div className="card table-wrap">
               {sales.categories.length === 0 && <p className="muted">{t("noRows")}</p>}
               <table>
                 <thead>
@@ -504,7 +508,7 @@ export function ReportsPage() {
         </>
       )}
       {tab === "stock" && stock && (
-        <div className="card" style={{ overflowX: "auto" }}>
+        <div className="card table-wrap">
           <div className="row">
             <div className="kpi">
               {t("stockValue")}
@@ -567,7 +571,7 @@ export function ReportsPage() {
         </div>
       )}
       {tab === "ledger" && (
-        <div className="card" style={{ overflowX: "auto" }}>
+        <div className="card table-wrap">
           <div className="chips" style={{ marginBottom: 12 }}>
             {["", "sale", "purchase", "damage", "supplier_return", "cancel"].map((key) => (
               <button key={key || "all"} className={`chip ${purpose === key ? "on" : ""}`} type="button" onClick={() => setPurpose(key)}>
@@ -644,7 +648,7 @@ function PeopleTable({
   );
   if (!ranked.length) return <p className="muted">{t("noRows")}</p>;
   return (
-    <div className="card" style={{ overflowX: "auto" }}>
+    <div className="card table-wrap">
       <table>
         <thead>
           <tr>

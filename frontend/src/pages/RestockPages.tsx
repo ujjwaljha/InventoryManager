@@ -1,7 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { ItemPicker, StatusTag } from "../components/ui";
+import { ItemPicker, PageHeader, StatusTag } from "../components/ui";
+import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, when } from "../money";
 import type { Item, Restock } from "../types";
@@ -14,27 +15,31 @@ export function RestockList() {
   }, []);
   return (
     <div className="grid">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h2 style={{ margin: 0 }}>{t("restockTitle")}</h2>
-          <p className="muted">{t("restockHint")}</p>
-        </div>
-        <Link className="btn" to="/restock/new">
-          {t("newRestock")}
-        </Link>
-      </div>
-      {rows.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {rows.map((row) => (
-        <Link className="card row" key={row.id} to={`/restock/${row.id}`} style={{ justifyContent: "space-between" }}>
-          <div>
-            <b>{row.number}</b> <StatusTag status={row.status === "received" ? "received" : "draft"} />
-            <div className="muted">
-              {row.supplier_name || t("supplier")} · {when(row.received_at || row.created_at, locale)}
-            </div>
-          </div>
-          <div className="price">{money(row.total_cost_cents)}</div>
-        </Link>
-      ))}
+      <PageHeader
+        title={t("restockTitle")}
+        hint={t("restockHint")}
+        actions={
+          <Link className="btn" to="/restock/new">
+            {t("newRestock")}
+          </Link>
+        }
+      />
+      {rows.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((row) => (
+            <Link className="result-row" key={row.id} to={`/restock/${row.id}`}>
+              <div>
+                <b>{row.number}</b> <StatusTag status={row.status === "received" ? "received" : "draft"} />
+                <div className="muted">
+                  {row.supplier_name || t("supplier")} · {when(row.received_at || row.created_at, locale)}
+                </div>
+              </div>
+              <div className="price">{money(row.total_cost_cents)}</div>
+            </Link>
+          ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }
@@ -61,8 +66,16 @@ export function RestockNew() {
     }
   }
   return (
-    <form className="card form-grid" onSubmit={onSubmit}>
-      <h2 style={{ margin: 0 }}>{t("newRestock")}</h2>
+    <div className="grid">
+      <PageHeader
+        title={t("newRestock")}
+        actions={
+          <Link className="btn ghost" to="/restock">
+            {t("restock")}
+          </Link>
+        }
+      />
+      <form className="card form-grid" onSubmit={onSubmit}>
       {error && <div className="banner">{error}</div>}
       <label>
         {t("supplierName")}
@@ -80,6 +93,7 @@ export function RestockNew() {
         {t("create")}
       </button>
     </form>
+    </div>
   );
 }
 
@@ -126,22 +140,35 @@ export function RestockDetail() {
   if (!row) return <p className="muted">{error || t("loading")}</p>;
   return (
     <div className="grid">
-      <Link to="/restock">{t("restock")}</Link>
+      <PageHeader
+        kicker={row.number}
+        title={row.supplier_name || t("supplier")}
+        hint={when(row.received_at || row.created_at, locale)}
+        actions={
+          <>
+            <Link className="btn ghost" to="/restock">
+              {t("restock")}
+            </Link>
+            {row.status === "draft" ? (
+              <button className="btn" type="button" onClick={receive} disabled={!row.lines.length}>
+                {t("receiveStock")}
+              </button>
+            ) : null}
+          </>
+        }
+      />
       {error && <div className="banner">{error}</div>}
-      <div className="card">
-        <div className="sku">{row.number}</div>
-        <h2 style={{ margin: "4px 0" }}>{row.supplier_name || t("supplier")}</h2>
+      <div className="row">
         <StatusTag status={row.status === "received" ? "received" : "draft"} />
-        <p className="muted">{when(row.received_at || row.created_at, locale)}</p>
         <div className="price">{money(row.total_cost_cents)}</div>
       </div>
       {row.status === "draft" && (
-        <div className="card">
+        <div className="card form-grid">
           <h3>{t("addLine")}</h3>
           <ItemPicker costMode onAdd={(item, qty, extra) => add(item, qty, extra)} />
         </div>
       )}
-      <div className="card" style={{ overflowX: "auto" }}>
+      <div className="card table-wrap">
         <table>
           <thead>
             <tr>
@@ -185,11 +212,6 @@ export function RestockDetail() {
           </tbody>
         </table>
       </div>
-      {row.status === "draft" && (
-        <button className="btn" type="button" onClick={receive} disabled={!row.lines.length}>
-          {t("receiveStock")}
-        </button>
-      )}
     </div>
   );
 }

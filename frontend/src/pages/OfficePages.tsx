@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, buildQuery, useDebounced, type PageResult } from "../components/Finder";
-import { ItemPicker, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, ResultList, buildQuery, useDebounced, type PageResult } from "../components/Finder";
+import { DocToolbar, ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
 import type { CreditReport, DamageNote, Invoice, Item, SupplierReturn } from "../types";
@@ -43,7 +43,7 @@ export function ReceiptsPage() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("lookUpReceipt")}</h2>
+      <PageHeader title={t("lookUpReceipt")} hint={t("lookUpHint")} />
       <FinderBar
         q={q}
         onQ={setQ}
@@ -54,14 +54,17 @@ export function ReceiptsPage() {
         statuses={["issued", "paid", "void"]}
         status={status}
         onStatus={setStatus}
-        hint={t("lookUpHint")}
         onSubmit={() => load(0, q)}
       />
       {error && <div className="banner">{error}</div>}
-      {page && page.items.length === 0 && <p className="muted">{t("noRows")}</p>}
-      {page?.items.map((inv) => (
-        <InvoiceResultCard key={inv.id} invoice={inv} />
-      ))}
+      {page && page.items.length === 0 && <p className="empty-state">{t("noRows")}</p>}
+      {page && page.items.length > 0 ? (
+        <ResultList>
+          {page.items.map((inv) => (
+            <InvoiceResultCard key={inv.id} invoice={inv} />
+          ))}
+        </ResultList>
+      ) : null}
       {page ? <Pager total={page.total} limit={page.limit} offset={page.offset} onOffset={setOffset} /> : null}
     </div>
   );
@@ -81,57 +84,66 @@ export function ReceiptDetail() {
   if (!invoice) return <p className="muted">{t("loading")}</p>;
   return (
     <div className="grid print-thermal">
-      <div className="row no-print">
-        <Link to="/receipts">{t("backInvoices")}</Link>
-        <button className="btn" onClick={() => window.print()}>
-          {t("printThermal")}
-        </button>
-        <ShareReceiptButton invoice={invoice} />
+      <div className="no-print">
+        <PageHeader
+          kicker={invoice.number}
+          title={invoice.shopper_name || t("lookUpReceipt")}
+          hint={invoice.shopper_phone}
+          actions={
+            <>
+              <Link className="btn ghost" to="/receipts">
+                {t("backInvoices")}
+              </Link>
+              <button className="btn" onClick={() => window.print()}>
+                {t("printThermal")}
+              </button>
+              <ShareReceiptButton invoice={invoice} />
+            </>
+          }
+        />
+        <p className="muted">{t("thermalHint")}</p>
       </div>
-      <p className="muted no-print">{t("thermalHint")}</p>
-      {invoice.status === "issued" && (
-        <div className="row no-print">
-          <button
-            className="btn"
-            onClick={async () => {
-              const next = await api<Invoice>(`/api/invoices/${invoice.id}/mark-paid`, { method: "POST" });
-              setInvoice(next);
-            }}
-          >
-            {t("markPaid")}
-          </button>
-          <PaymentForm invoice={invoice} onPaid={setInvoice} />
-          <button
-            className="btn warn"
-            onClick={async () => {
-              if (!window.confirm(t("confirmCancel"))) return;
-              await api(`/api/orders/${invoice.purchase_order_id}/cancel`, { method: "POST" });
-              const next = await api<Invoice>(`/api/invoices/${invoice.id}`);
-              setInvoice(next);
-            }}
-          >
-            {t("cancelOrder")}
-          </button>
-        </div>
-      )}
       {invoice.status !== "void" && (
-        <div className="row no-print">
+        <DocToolbar>
+          {invoice.status === "issued" ? (
+            <>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const next = await api<Invoice>(`/api/invoices/${invoice.id}/mark-paid`, { method: "POST" });
+                  setInvoice(next);
+                }}
+              >
+                {t("markPaid")}
+              </button>
+              <PaymentForm invoice={invoice} onPaid={setInvoice} />
+              <button
+                className="btn warn"
+                onClick={async () => {
+                  if (!window.confirm(t("confirmCancel"))) return;
+                  await api(`/api/orders/${invoice.purchase_order_id}/cancel`, { method: "POST" });
+                  const next = await api<Invoice>(`/api/invoices/${invoice.id}`);
+                  setInvoice(next);
+                }}
+              >
+                {t("cancelOrder")}
+              </button>
+            </>
+          ) : null}
           <DueDateForm invoice={invoice} onSaved={setInvoice} />
-        </div>
-      )}
-      {invoice.status === "paid" && (
-        <div className="row no-print">
-          <button
-            className="btn ghost"
-            onClick={async () => {
-              if (!window.confirm(t("confirmUnpay"))) return;
-              const next = await api<Invoice>(`/api/invoices/${invoice.id}/unpay`, { method: "POST" });
-              setInvoice(next);
-            }}
-          >
-            {t("markUnpaid")}
-          </button>
-        </div>
+          {invoice.status === "paid" ? (
+            <button
+              className="btn ghost"
+              onClick={async () => {
+                if (!window.confirm(t("confirmUnpay"))) return;
+                const next = await api<Invoice>(`/api/invoices/${invoice.id}/unpay`, { method: "POST" });
+                setInvoice(next);
+              }}
+            >
+              {t("markUnpaid")}
+            </button>
+          ) : null}
+        </DocToolbar>
       )}
       <ThermalReceipt invoice={invoice} />
     </div>
@@ -212,20 +224,19 @@ export function CreditPage() {
         </article>
       ) : null}
       <div className={printFor ? "no-print" : ""}>
-      <div>
-        <h2 style={{ margin: 0 }}>{t("credit")}</h2>
-        <p className="muted">{t("creditHint")}</p>
-      </div>
-      <div className="chips">
-        <button className={`chip ${filter === "all" ? "on" : ""}`} type="button" onClick={() => setFilter("all")}>
-          {t("allUnpaid")}
-        </button>
-        <button className={`chip ${filter === "overdue" ? "on" : ""}`} type="button" onClick={() => setFilter("overdue")}>
-          {t("overdueOnly")}
-        </button>
-        <button className={`chip ${filter === "promised" ? "on" : ""}`} type="button" onClick={() => setFilter("promised")}>
-          {t("promiseDue")}
-        </button>
+      <PageHeader title={t("credit")} hint={t("creditHint")} />
+      <div className="card filter-card">
+        <div className="chips">
+          <button className={`chip ${filter === "all" ? "on" : ""}`} type="button" onClick={() => setFilter("all")}>
+            {t("allUnpaid")}
+          </button>
+          <button className={`chip ${filter === "overdue" ? "on" : ""}`} type="button" onClick={() => setFilter("overdue")}>
+            {t("overdueOnly")}
+          </button>
+          <button className={`chip ${filter === "promised" ? "on" : ""}`} type="button" onClick={() => setFilter("promised")}>
+            {t("promiseDue")}
+          </button>
+        </div>
       </div>
       <div className="row">
         <div className="card kpi">
@@ -257,7 +268,7 @@ export function CreditPage() {
           <b>{money(data.aging_cents?.d90_plus || 0, data.currency_symbol)}</b>
         </div>
       </div>
-      {customers.length === 0 && <p className="muted">{t("noCredit")}</p>}
+      {customers.length === 0 && <p className="empty-state">{t("noCredit")}</p>}
       {customers.map((c) => (
         <section className="card" key={c.shopper_id}>
           <div className="row split" style={{ justifyContent: "space-between" }}>
@@ -277,7 +288,7 @@ export function CreditPage() {
             .filter((inv) => inv.shopper_id === c.shopper_id)
             .filter((inv) => filter === "all" || (inv.overdue_days || 0) > 0)
             .map((inv) => (
-              <Link key={inv.id} className="row split" to={`/receipts/${inv.id}`} style={{ marginTop: 8 }}>
+              <Link key={inv.id} className="nested-row" to={`/receipts/${inv.id}`}>
                 <span>
                   {inv.number} <StatusTag status={inv.status} />
                   {inv.due_date ? (
@@ -372,7 +383,7 @@ export function DamagePage() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("recordDamage")}</h2>
+      <PageHeader title={t("recordDamage")} />
       {error && <div className="banner">{error}</div>}
       <div className="card form-grid">
         <label>
@@ -380,36 +391,44 @@ export function DamagePage() {
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("damageReason")} />
         </label>
         <ItemPicker onAdd={(item, qty) => setLines((c) => [...c, { item, quantity: qty }])} />
-        {lines.map((ln, idx) => (
-          <div className="row" key={`${ln.item.id}-${idx}`} style={{ justifyContent: "space-between" }}>
-            <span>
-              {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
-            </span>
-            <button type="button" className="btn ghost" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
-              ×
-            </button>
-          </div>
-        ))}
+        {lines.length > 0 ? (
+          <ResultList>
+            {lines.map((ln, idx) => (
+              <div className="result-row" key={`${ln.item.id}-${idx}`}>
+                <span>
+                  {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
+                </span>
+                <button type="button" className="btn ghost small" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </ResultList>
+        ) : null}
         <button className="btn warn" type="button" disabled={!reason || !lines.length} onClick={submit}>
           {t("saveDamage")}
         </button>
       </div>
-      {rows.map((row) => (
-        <section className="card" key={row.id}>
-          <b>{row.number}</b>
-          <div className="muted">
-            {row.reason} · {when(row.created_at, locale)}
-          </div>
-          <div>
-            {t("cogs")} {money(row.cogs_cents)}
-          </div>
-          {row.lines.map((ln) => (
-            <div key={ln.id} className="muted">
-              {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((row) => (
+            <div className="result-row" key={row.id}>
+              <div>
+                <b>{row.number}</b>
+                <div className="muted">
+                  {row.reason} · {when(row.created_at, locale)}
+                </div>
+                {row.lines.map((ln) => (
+                  <div key={ln.id} className="muted">
+                    {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+                  </div>
+                ))}
+              </div>
+              <div className="price">{money(row.cogs_cents)}</div>
             </div>
           ))}
-        </section>
-      ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }
@@ -454,7 +473,7 @@ export function ReturnsPage() {
 
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("returnToSupplier")}</h2>
+      <PageHeader title={t("returnToSupplier")} />
       {error && <div className="banner">{error}</div>}
       <div className="card form-grid">
         <label>
@@ -470,36 +489,44 @@ export function ReturnsPage() {
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("returnReason")} />
         </label>
         <ItemPicker onAdd={(item, qty) => setLines((c) => [...c, { item, quantity: qty }])} />
-        {lines.map((ln, idx) => (
-          <div className="row" key={`${ln.item.id}-${idx}`} style={{ justifyContent: "space-between" }}>
-            <span>
-              {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
-            </span>
-            <button type="button" className="btn ghost" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
-              ×
-            </button>
-          </div>
-        ))}
+        {lines.length > 0 ? (
+          <ResultList>
+            {lines.map((ln, idx) => (
+              <div className="result-row" key={`${ln.item.id}-${idx}`}>
+                <span>
+                  {pick(ln.item.name, ln.item.name_id)} × {formatQty(ln.quantity)}
+                </span>
+                <button type="button" className="btn ghost small" onClick={() => setLines((c) => c.filter((_, i) => i !== idx))}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </ResultList>
+        ) : null}
         <button className="btn" type="button" disabled={!reason || !lines.length} onClick={submit}>
           {t("submitReturn")}
         </button>
       </div>
-      {rows.map((row) => (
-        <section className="card" key={row.id}>
-          <b>{row.number}</b>
-          <div className="muted">
-            {row.supplier_name} · {row.reason} · {when(row.created_at, locale)}
-          </div>
-          <div>
-            {t("cogs")} {money(row.cogs_cents)}
-          </div>
-          {row.lines.map((ln) => (
-            <div key={ln.id} className="muted">
-              {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+      {rows.length > 0 ? (
+        <ResultList>
+          {rows.map((row) => (
+            <div className="result-row" key={row.id}>
+              <div>
+                <b>{row.number}</b>
+                <div className="muted">
+                  {row.supplier_name} · {row.reason} · {when(row.created_at, locale)}
+                </div>
+                {row.lines.map((ln) => (
+                  <div key={ln.id} className="muted">
+                    {pick(ln.name, ln.name_id)} × {formatQty(ln.quantity)}
+                  </div>
+                ))}
+              </div>
+              <div className="price">{money(row.cogs_cents)}</div>
             </div>
           ))}
-        </section>
-      ))}
+        </ResultList>
+      ) : null}
     </div>
   );
 }
@@ -520,12 +547,14 @@ export function MorePage() {
   ] as const;
   return (
     <div className="grid">
-      <h2 style={{ margin: 0 }}>{t("moreOffice")}</h2>
-      {links.map(([to, label]) => (
-        <Link className="card" key={to} to={to}>
-          {label}
-        </Link>
-      ))}
+      <PageHeader title={t("moreOffice")} />
+      <div className="more-grid">
+        {links.map(([to, label]) => (
+          <Link className="card more-link" key={to} to={to}>
+            {label}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

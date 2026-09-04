@@ -36,22 +36,20 @@ export function FinderBar({
   statuses: string[];
   status: string;
   onStatus: (v: string) => void;
-  hint: string;
+  hint?: string;
   onSubmit: () => void;
 }) {
   const { t } = useI18n();
   return (
     <form
-      className="finder-filters"
+      className="card filter-card"
       onSubmit={(e: FormEvent) => {
         e.preventDefault();
         onSubmit();
       }}
     >
-      <p className="muted" style={{ margin: 0 }}>
-        {hint}
-      </p>
-      <div className="row">
+      {hint ? <p className="muted" style={{ margin: 0 }}>{hint}</p> : null}
+      <div className="toolbar">
         <input className="search" value={q} onChange={(e) => onQ(e.target.value)} placeholder={t("searchOrders")} />
         <button className="btn" type="submit">
           {t("findReceipt")}
@@ -123,10 +121,14 @@ function lineSummary(lines: { sku: string; name: string; name_id?: string }[], p
     .join(" · ");
 }
 
+export function ResultList({ children }: { children: ReactNode }) {
+  return <div className="result-list card">{children}</div>;
+}
+
 export function InvoiceResultCard({ invoice }: { invoice: Invoice }) {
   const { t, pick, locale } = useI18n();
   return (
-    <Link className="card row" to={`/receipts/${invoice.id}`}>
+    <Link className="result-row" to={`/receipts/${invoice.id}`}>
       <div>
         <b>{invoice.number}</b> <StatusTag status={invoice.status} />
         <div className="muted">
@@ -171,10 +173,10 @@ export function OrderResultCard({ order }: { order: PurchaseOrder }) {
     </>
   );
   if (!order.invoice) {
-    return <div className="card row">{inner}</div>;
+    return <div className="result-row">{inner}</div>;
   }
   return (
-    <Link className="card row" to={href}>
+    <Link className="result-row" to={href}>
       {inner}
     </Link>
   );
