@@ -6,7 +6,7 @@ import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, qtyStep, unitLabel, when, whenFull } from "../money";
 import { receiptPlainText, shareReceipt } from "../receiptShare";
 import { matchScannedCode, shortScanCode } from "../sku";
-import type { Invoice, Item, Settings, Shopper } from "../types";
+import type { Invoice, Item, Settings, Shopper, Supplier } from "../types";
 
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
   const { t, pick, locale } = useI18n();
@@ -230,7 +230,7 @@ export function ItemPicker({
   function selectItem(item: Item) {
     setPicked(item);
     setQ("");
-    if (costMode) setExtra(String(Math.round((item.fifo_cogs_cents ?? item.unit_cost_cents) / 100)));
+    if (costMode) setExtra(String(Math.round((item.unit_cost_cents || item.fifo_cogs_cents || 0) / 100)));
     setQty(String(qtyStep(item.unit)));
   }
 
@@ -268,7 +268,7 @@ export function ItemPicker({
         message: t("onlyLeft", { name: pick(item.name, item.name_id), available: formatQty(sellable) }),
       };
     }
-    const cost = costMode ? Math.round((item.fifo_cogs_cents ?? item.unit_cost_cents) / 100) : undefined;
+    const cost = costMode ? Math.round((item.unit_cost_cents || item.fifo_cogs_cents || 0) / 100) : undefined;
     commit(item, step, cost);
     return { ok: true, message: t("scanAdded", { name: pick(item.name, item.name_id) }) };
   }
@@ -392,6 +392,80 @@ export function ItemPicker({
   );
 }
 
+
+export function SupplierPicker({
+  value,
+  name,
+  phone,
+  onChange,
+}: {
+  value: number | "new" | "";
+  name: string;
+  phone: string;
+  onChange: (next: { value: number | "new" | ""; name: string; phone: string }) => void;
+}) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState<Supplier[]>([]);
+
+  useEffect(() => {
+    api<Supplier[]>("/api/suppliers").then(setRows).catch(() => undefined);
+  }, []);
+
+  return (
+    <>
+      <label>
+        {t("supplier")}
+        <select
+          value={value === "" ? "" : value === "new" ? "new" : String(value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (next === "" || next === "new") {
+              onChange({ value: next, name: "", phone: "" });
+              return;
+            }
+            const row = rows.find((s) => s.id === Number(next));
+            onChange({
+              value: row?.id ?? "",
+              name: row?.name ?? "",
+              phone: row?.phone ?? "",
+            });
+          }}
+        >
+          {rows.length > 0 ? <option value="">{t("selectSupplier")}</option> : null}
+          {typeof value === "number" && !rows.some((s) => s.id === value) ? (
+            <option value={value}>{name || t("supplier")}</option>
+          ) : null}
+          {rows.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+              {s.phone ? ` · ${s.phone}` : ""}
+            </option>
+          ))}
+          <option value="new">{t("newSupplier")}</option>
+        </select>
+      </label>
+      {value === "new" ? (
+        <>
+          <label>
+            {t("supplierName")}
+            <input
+              value={name}
+              onChange={(e) => onChange({ value: "new", name: e.target.value, phone })}
+              required
+            />
+          </label>
+          <label>
+            {t("phone")}
+            <input
+              value={phone}
+              onChange={(e) => onChange({ value: "new", name, phone: e.target.value })}
+            />
+          </label>
+        </>
+      ) : null}
+    </>
+  );
+}
 
 export function StatusTag({ status }: { status: string }) {
   const { t } = useI18n();

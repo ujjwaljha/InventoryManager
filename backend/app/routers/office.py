@@ -4,7 +4,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_db, raise_checkout
 from app.models import DamageNote, Restock, RestockLine, Supplier, SupplierReturn, SupplierReturnLine
-from app.schemas import DamageIn, RestockCreateIn, RestockLineIn, SupplierIn, SupplierReturnIn, TillSaleIn
+from app.schemas import (
+    DamageIn,
+    RestockCreateIn,
+    RestockLineIn,
+    RestockUpdateIn,
+    SupplierIn,
+    SupplierReturnIn,
+    TillSaleIn,
+)
 from app.serialize import damage_out, invoice_out, restock_out, supplier_return_out
 from app.qty import to_store
 from app.services import office as off
@@ -50,16 +58,24 @@ def list_restocks(status: str | None = Query(default=None), db: Session = Depend
     return [restock_out(row) for row in db.execute(stmt).scalars()]
 
 
+def _supplier_from_body(db: Session, body: RestockCreateIn | RestockUpdateIn) -> Supplier | None:
+    if body.supplier_id:
+        supplier = db.get(Supplier, body.supplier_id)
+        if supplier is None:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        return supplier
+    name = (body.supplier_name or "").strip()
+    if name:
+        return off.upsert_supplier(db, name, body.supplier_phone)
+    return None
+
+
 @router.post("/restocks")
 def create_restock(body: RestockCreateIn, db: Session = Depends(get_db)):
     try:
-        supplier = None
-        if body.supplier_id:
-            supplier = db.get(Supplier, body.supplier_id)
-            if supplier is None:
-                raise HTTPException(status_code=404, detail="Supplier not found")
-        elif body.supplier_name:
-            supplier = off.upsert_supplier(db, body.supplier_name, body.supplier_phone)
+        supplier = _supplier_from_body(db, body)
+        if supplier is None:
+            raise HTTPException(status_code=400, detail="Supplier is required")
         row = off.create_restock(db, supplier, body.note)
         db.commit()
         return restock_out(off.load_restock(db, row.id) or row)
@@ -85,7 +101,14 @@ def restock_add_line(restock_id: int, body: RestockLineIn, db: Session = Depends
     if row is None:
         raise HTTPException(status_code=404, detail="Restock not found")
     try:
-        row = off.upsert_restock_line(db, row, body.item_id, to_store(body.quantity), body.unit_cost_cents)
+        row = off.upsert_restock_line(
+            db,
+            row,
+            body.item_id,
+            to_store(body.quantity),
+            body.unit_cost_cents,
+            replace=body.replace,
+        )
         db.commit()
         return restock_out(off.load_restock(db, restock_id) or row)
     except Exception as err:
@@ -102,6 +125,39 @@ def restock_remove_line(restock_id: int, item_id: int, db: Session = Depends(get
         row = off.remove_restock_line(db, row, item_id)
         db.commit()
         return restock_out(off.load_restock(db, restock_id) or row)
+    except Exception as err:
+        db.rollback()
+        raise_checkout(err)
+
+
+@router.patch("/restocks/{restock_id}")
+def patch_restock(restock_id: int, body: RestockUpdateIn, db: Session = Depends(get_db)):
+    row = off.load_restock(db, restock_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Restock not found")
+    try:
+        set_supplier = bool(body.supplier_id) or bool((body.supplier_name or "").strip())
+        supplier = _supplier_from_body(db, body) if set_supplier else None
+        row = off.update_restock(db, row, supplier=supplier, set_supplier=set_supplier, note=body.note)
+        db.commit()
+        return restock_out(off.load_restock(db, restock_id) or row)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as err:
+        db.rollback()
+        raise_checkout(err)
+
+
+@router.delete("/restocks/{restock_id}")
+def discard_restock(restock_id: int, db: Session = Depends(get_db)):
+    row = off.load_restock(db, restock_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Restock not found")
+    try:
+        off.discard_restock(db, row)
+        db.commit()
+        return {"ok": True}
     except Exception as err:
         db.rollback()
         raise_checkout(err)

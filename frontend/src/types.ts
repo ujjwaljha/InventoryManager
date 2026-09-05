@@ -228,6 +228,7 @@ export type RestockLine = {
   name: string;
   name_id?: string;
   quantity: number;
+  unit?: string;
   unit_cost_cents: number;
   line_total_cents: number;
 };

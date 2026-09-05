@@ -318,6 +318,7 @@ class RestockLineIn(BaseModel):
     item_id: int
     quantity: float = Field(gt=0)
     unit_cost_cents: int = Field(ge=0)
+    replace: bool = False
 
 
 class RestockCreateIn(BaseModel):
@@ -325,6 +326,13 @@ class RestockCreateIn(BaseModel):
     supplier_name: str | None = None
     supplier_phone: str = ""
     note: str = ""
+
+
+class RestockUpdateIn(BaseModel):
+    supplier_id: int | None = None
+    supplier_name: str | None = None
+    supplier_phone: str = ""
+    note: str | None = None
 
 
 class OfficeLineIn(BaseModel):

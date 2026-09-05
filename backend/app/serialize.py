@@ -230,6 +230,7 @@ def restock_out(row: Restock) -> dict:
                 "name": ln.name,
                 "name_id": ln.name_id or ln.name,
                 "quantity": from_store(ln.quantity),
+                "unit": ln.item.unit if ln.item is not None else "ea",
                 "unit_cost_cents": ln.unit_cost_cents,
                 "line_total_cents": money_qty(ln.quantity, ln.unit_cost_cents),
             }

@@ -347,6 +347,84 @@ def test_restock_can_remove_draft_line(client: TestClient):
     assert deleted.json()["lines"] == []
 
 
+def test_restock_add_same_item_increments(client: TestClient):
+    nails = _item(client, "NAL-1")
+    restock = client.post("/api/restocks", json={"supplier_name": "CV Baja"}).json()
+    first = client.post(
+        f"/api/restocks/{restock['id']}/lines",
+        json={"item_id": nails["id"], "quantity": 4, "unit_cost_cents": 100000},
+    )
+    assert first.status_code == 200, first.text
+    again = client.post(
+        f"/api/restocks/{restock['id']}/lines",
+        json={"item_id": nails["id"], "quantity": 2, "unit_cost_cents": 120000},
+    )
+    assert again.status_code == 200, again.text
+    lines = again.json()["lines"]
+    assert len(lines) == 1
+    assert lines[0]["quantity"] == 6
+    assert lines[0]["unit_cost_cents"] == 120000
+
+    keep = client.post(
+        f"/api/restocks/{restock['id']}/lines",
+        json={"item_id": nails["id"], "quantity": 1, "unit_cost_cents": 0},
+    )
+    assert keep.json()["lines"][0]["quantity"] == 7
+    assert keep.json()["lines"][0]["unit_cost_cents"] == 120000
+
+    replaced = client.post(
+        f"/api/restocks/{restock['id']}/lines",
+        json={"item_id": nails["id"], "quantity": 3, "unit_cost_cents": 90000, "replace": True},
+    )
+    assert replaced.status_code == 200, replaced.text
+    assert replaced.json()["lines"][0]["quantity"] == 3
+    assert replaced.json()["lines"][0]["unit_cost_cents"] == 90000
+
+
+def test_restock_create_selects_existing_supplier(client: TestClient):
+    missing = client.post("/api/restocks", json={"note": "no supplier"})
+    assert missing.status_code == 400
+    first = client.post(
+        "/api/restocks",
+        json={"supplier_name": "CV Baja", "supplier_phone": "0274555001", "note": "PO-1"},
+    ).json()
+    sid = first["supplier_id"]
+    assert sid
+    listed = client.get("/api/suppliers").json()
+    assert any(s["id"] == sid and s["name"] == "CV Baja" for s in listed)
+    second = client.post("/api/restocks", json={"supplier_id": sid, "note": "PO-2"}).json()
+    assert second["supplier_id"] == sid
+    assert second["supplier_name"] == "CV Baja"
+    assert second["note"] == "PO-2"
+    patched = client.patch(
+        f"/api/restocks/{second['id']}",
+        json={"supplier_name": "PT Semen Gresik", "supplier_phone": "031111", "note": "updated"},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["supplier_name"] == "PT Semen Gresik"
+    assert patched.json()["note"] == "updated"
+
+
+def test_restock_discard_draft_but_not_received(client: TestClient):
+    nails = _item(client, "NAL-1")
+    draft = client.post("/api/restocks", json={"supplier_name": "CV Draf"}).json()
+    gone = client.delete(f"/api/restocks/{draft['id']}")
+    assert gone.status_code == 200, gone.text
+    assert client.get(f"/api/restocks/{draft['id']}").status_code == 404
+
+    restock = client.post("/api/restocks", json={"supplier_name": "CV Jadi"}).json()
+    client.post(
+        f"/api/restocks/{restock['id']}/lines",
+        json={"item_id": nails["id"], "quantity": 1, "unit_cost_cents": 1000},
+    )
+    received = client.post(f"/api/restocks/{restock['id']}/receive")
+    assert received.status_code == 200, received.text
+    again = client.post(f"/api/restocks/{restock['id']}/receive")
+    assert again.status_code == 400
+    blocked = client.delete(f"/api/restocks/{restock['id']}")
+    assert blocked.status_code == 400
+
+
 def test_ledger_filters_by_purpose_and_date(client: TestClient):
     cement = _item(client, "CEM-50")
     dmg = client.post(

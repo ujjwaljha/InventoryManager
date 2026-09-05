@@ -83,7 +83,14 @@ def create_restock(db: Session, supplier: Supplier | None, note: str = "") -> Re
     return loaded
 
 
-def upsert_restock_line(db: Session, restock: Restock, item_id: int, quantity: int, unit_cost_cents: int) -> Restock:
+def upsert_restock_line(
+    db: Session,
+    restock: Restock,
+    item_id: int,
+    quantity: int,
+    unit_cost_cents: int,
+    replace: bool = False,
+) -> Restock:
     if restock.status != "draft":
         raise chk.CheckoutError("Only a draft restock can be edited")
     item = db.get(Item, item_id)
@@ -106,17 +113,46 @@ def upsert_restock_line(db: Session, restock: Restock, item_id: int, quantity: i
             )
         )
     else:
-        line.quantity = quantity
+        line.quantity = quantity if replace else line.quantity + quantity
         line.sku = item.sku
         line.name = item.name
         line.name_id = item.name_id or item.name
-        line.unit_cost_cents = unit_cost_cents
+        if replace or unit_cost_cents > 0:
+            line.unit_cost_cents = unit_cost_cents
     restock.updated_at = utcnow()
     db.flush()
     db.expire(restock, ["lines"])
     loaded = load_restock(db, restock.id)
     assert loaded is not None
     return loaded
+
+
+def update_restock(
+    db: Session,
+    restock: Restock,
+    *,
+    supplier: Supplier | None = None,
+    set_supplier: bool = False,
+    note: str | None = None,
+) -> Restock:
+    if restock.status != "draft":
+        raise chk.CheckoutError("Only a draft restock can be edited")
+    if set_supplier:
+        restock.supplier_id = supplier.id if supplier else None
+    if note is not None:
+        restock.note = note
+    restock.updated_at = utcnow()
+    db.flush()
+    loaded = load_restock(db, restock.id)
+    assert loaded is not None
+    return loaded
+
+
+def discard_restock(db: Session, restock: Restock) -> None:
+    if restock.status != "draft":
+        raise chk.CheckoutError("Only a draft restock can be discarded")
+    db.delete(restock)
+    db.flush()
 
 
 def remove_restock_line(db: Session, restock: Restock, item_id: int) -> Restock:
