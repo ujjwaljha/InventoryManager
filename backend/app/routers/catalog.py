@@ -34,6 +34,10 @@ def _item_matches(item: Item, needle: str) -> bool:
         item.description or "",
         item.description_id or "",
         item.notes or "",
+        item.category.name if item.category else "",
+        (item.category.name_id if item.category else "") or "",
+        item.location.name if item.location else "",
+        (item.location.name_id if item.location else "") or "",
     )
     return any(needle in (field or "").lower() for field in fields)
 
@@ -343,6 +347,27 @@ def archive_item(item_id: int, db: Session = Depends(get_db)):
     _archive_item_row(item)
     db.commit()
     return {"ok": True, "archived": True, "deleted": False}
+
+
+def _reload_item(db: Session, item_id: int) -> Item:
+    return db.execute(
+        select(Item)
+        .options(selectinload(Item.category), selectinload(Item.location), selectinload(Item.lots))
+        .where(Item.id == item_id)
+    ).scalar_one()
+
+
+@router.post("/items/{item_id}/unarchive")
+def unarchive_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    item.archived = 0
+    item.updated_at = utcnow()
+    db.commit()
+    item = _reload_item(db, item_id)
+    reserved = chk.draft_reserved(db, [item.id]).get(item.id, 0)
+    return item_out(item, reserved)
 
 
 @router.delete("/items/{item_id}")

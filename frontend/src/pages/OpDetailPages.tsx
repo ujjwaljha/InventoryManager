@@ -17,15 +17,18 @@ export function OpItemDetail() {
   const [cats, setCats] = useState<Category[]>([]);
   const [locs, setLocs] = useState<Location[]>([]);
   const [qty, setQty] = useState("1");
+  const [cost, setCost] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const nav = useNavigate();
 
   async function load() {
     const it = await api<Item>(`/api/items/${id}`);
     setItem(it);
+    setCost(rupiahFromCents(it.unit_cost_cents));
     setMoves(await api<Movement[]>(`/api/items/${id}/movements`));
     setLots(await api<StockLot[]>(`/api/items/${id}/lots`));
     setCats(await api<Category[]>("/api/categories"));
@@ -37,16 +40,55 @@ export function OpItemDetail() {
   }, [id]);
 
   async function move(kind: string) {
+    if (!item) return;
+    const qtyN = Number(qty);
+    if (!Number.isFinite(qtyN) || (kind !== "adjust" && qtyN <= 0) || qtyN < 0) return;
+    const name = pick(item.name, item.name_id);
+    const unit = unitLabel(item.unit, locale);
+    const costLabel = cost || "0";
+    const ok =
+      kind === "in"
+        ? window.confirm(t("confirmReceiveIn", { name, qty: formatQty(qtyN), unit, cost: costLabel }))
+        : kind === "adjust"
+          ? window.confirm(t("confirmSetCount", { name, qty: formatQty(qtyN), unit }))
+          : window.confirm(t("confirmShrinkage", { name, qty: formatQty(qtyN), unit }));
+    if (!ok) return;
     setError("");
+    setBusy(true);
     try {
+      const body: { kind: string; quantity: number; reason: string; unit_cost_cents?: number } = {
+        kind,
+        quantity: qtyN,
+        reason,
+      };
+      if (kind === "in" || kind === "adjust") {
+        body.unit_cost_cents = centsFromRupiah(costLabel);
+      }
       await api(`/api/items/${id}/movements`, {
         method: "POST",
-        body: JSON.stringify({ kind, quantity: Number(qty), reason }),
+        body: JSON.stringify(body),
       });
       setReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("movementFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restore() {
+    setError("");
+    setNotice("");
+    setBusy(true);
+    try {
+      const next = await api<Item>(`/api/items/${id}/unarchive`, { method: "POST" });
+      setItem(next);
+      setNotice(t("itemRestored"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("updateFailed"));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -109,9 +151,16 @@ export function OpItemDetail() {
             : t("onHand", { qty: formatQty(item.quantity), unit: unitLabel(item.unit, locale) })
         }
         actions={
-          <Link className="btn ghost" to="/items">
-            {t("backItems")}
-          </Link>
+          <>
+            <Link className="btn ghost" to="/items">
+              {t("backItems")}
+            </Link>
+            {item.archived ? (
+              <button className="btn" type="button" disabled={busy} onClick={restore}>
+                {t("restoreItem")}
+              </button>
+            ) : null}
+          </>
         }
       />
       {error && <div className="banner">{error}</div>}
@@ -204,29 +253,35 @@ export function OpItemDetail() {
           {t("save")}
         </button>
       </form>
+      {item.archived ? null : (
       <div className="card form-grid">
         <h3 style={{ margin: 0 }}>{t("stock")}</h3>
-        <p className="muted">{t("fifoLayers")}</p>
+        <p className="muted">{t("stockHint")}</p>
         <label>
           {t("quantity")}
           <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
+        </label>
+        <label>
+          {t("lastCost")}
+          <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="numeric" />
         </label>
         <label>
           {t("reason")}
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("reasonPlaceholder")} />
         </label>
         <div className="row">
-          <button className="btn" type="button" onClick={() => move("in")}>
+          <button className="btn" type="button" disabled={busy} onClick={() => move("in")}>
             {t("receiveIn")}
           </button>
-          <button className="btn ghost" type="button" onClick={() => move("adjust")}>
+          <button className="btn ghost" type="button" disabled={busy} onClick={() => move("adjust")}>
             {t("setCount")}
           </button>
-          <button className="btn warn" type="button" onClick={() => move("out")}>
+          <button className="btn warn" type="button" disabled={busy} onClick={() => move("out")}>
             {t("shrinkage")}
           </button>
         </div>
       </div>
+      )}
       <div className="card table-wrap">
         <h3>{t("lots")}</h3>
         <p className="muted">{t("fifoLayers")}</p>
@@ -276,9 +331,11 @@ export function OpItemDetail() {
           </tbody>
         </table>
       </div>
-      <button className="btn warn" type="button" disabled={deleting} onClick={remove}>
-        {t("deleteNamed")}
-      </button>
+      {item.archived ? null : (
+        <button className="btn warn" type="button" disabled={deleting} onClick={remove}>
+          {t("deleteNamed")}
+        </button>
+      )}
     </div>
   );
 }

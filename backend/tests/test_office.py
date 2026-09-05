@@ -891,6 +891,37 @@ def test_delete_item_in_history_archives(client: TestClient):
     assert still["archived"] is True
     with_archived = client.get("/api/items", params={"include_archived": True}).json()
     assert any(i["id"] == item_id and i["archived"] for i in with_archived)
+    restored = client.post(f"/api/items/{item_id}/unarchive")
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["archived"] is False
+    assert any(i["id"] == item_id and not i["archived"] for i in client.get("/api/items").json())
+    missing = client.post("/api/items/999999/unarchive")
+    assert missing.status_code == 404
+
+
+def test_item_list_filters_and_receive_cost(client: TestClient):
+    nails = _item(client, "NAL-1")
+    assert nails["category_id"]
+    by_cat = client.get("/api/items", params={"category_id": nails["category_id"]}).json()
+    assert by_cat
+    assert all(i["category_id"] == nails["category_id"] for i in by_cat)
+    low = client.get("/api/items", params={"low_stock": True}).json()
+    assert all(i["low_stock"] for i in low)
+    found = client.get("/api/items", params={"q": nails["sku"]}).json()
+    assert any(i["id"] == nails["id"] for i in found)
+
+    start = nails["quantity"]
+    later = 27500 * 100
+    moved = client.post(
+        f"/api/items/{nails['id']}/movements",
+        json={"kind": "in", "quantity": 3, "reason": "Walk-in", "unit_cost_cents": later},
+    )
+    assert moved.status_code == 200, moved.text
+    after = _item(client, "NAL-1")
+    assert after["quantity"] == start + 3
+    assert after["unit_cost_cents"] == later
+    lots = client.get(f"/api/items/{nails['id']}/lots").json()
+    assert any(lot["unit_cost_cents"] == later and lot["qty_remaining"] == 3 for lot in lots)
 
 
 def test_customer_file_lists_and_edits(client: TestClient):

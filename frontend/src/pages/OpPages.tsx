@@ -5,7 +5,7 @@ import { PageHeader, SharePanel } from "../components/ui";
 import { FinderBar, InvoiceResultCard, OrderResultCard, PAGE_SIZE, Pager, ResultList, buildQuery, useDebounced, type PageResult } from "../components/Finder";
 import { type MsgKey, useI18n } from "../i18n";
 import { formatQty, money, unitLabel } from "../money";
-import type { Dashboard, Invoice, Item, ItemDeleteResult, Movement, PurchaseOrder } from "../types";
+import type { Category, Dashboard, Invoice, Item, ItemDeleteResult, Location, Movement, PurchaseOrder } from "../types";
 
 export function OpDashboard() {
   const { t, pick, locale } = useI18n();
@@ -113,44 +113,79 @@ export function OpItems() {
   const { t, pick, locale } = useI18n();
   const loc = useLocation();
   const [items, setItems] = useState<Item[]>([]);
+  const [cats, setCats] = useState<Category[]>([]);
+  const [locs, setLocs] = useState<Location[]>([]);
   const [q, setQ] = useState("");
+  const needle = useDebounced(q);
+  const [categoryId, setCategoryId] = useState("");
+  const [locationId, setLocationId] = useState("");
+  const [lowOnly, setLowOnly] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  async function load() {
+    setError("");
+    const qs = buildQuery({
+      q: needle.trim(),
+      category_id: categoryId || undefined,
+      location_id: locationId || undefined,
+      low_stock: lowOnly ? 1 : undefined,
+      include_archived: showHidden ? 1 : undefined,
+    });
+    setItems(await api<Item[]>(`/api/items${qs}`));
+  }
+
   useEffect(() => {
-    api<Item[]>("/api/items").then(setItems);
+    api<Category[]>("/api/categories").then(setCats).catch(() => undefined);
+    api<Location[]>("/api/locations").then(setLocs).catch(() => undefined);
   }, []);
+  useEffect(() => {
+    load().catch((e) => setError(e instanceof Error ? e.message : t("updateFailed")));
+  }, [needle, categoryId, locationId, lowOnly, showHidden, t]);
   useEffect(() => {
     const fromDetail = (loc.state as { notice?: string } | null)?.notice;
     if (fromDetail) setNotice(fromDetail);
   }, [loc.state]);
-  const shown = items.filter((i) => {
-    if (!q) return true;
-    const n = q.toLowerCase();
-    return (
-      i.name.toLowerCase().includes(n) ||
-      (i.name_id || "").toLowerCase().includes(n) ||
-      (i.description || "").toLowerCase().includes(n) ||
-      (i.description_id || "").toLowerCase().includes(n) ||
-      i.sku.toLowerCase().includes(n)
-    );
-  });
-  shown.sort((a, b) => pick(a.name, a.name_id).localeCompare(pick(b.name, b.name_id), locale === "id" ? "id" : "en"));
+
+  const shown = [...items].sort((a, b) =>
+    pick(a.name, a.name_id).localeCompare(pick(b.name, b.name_id), locale === "id" ? "id" : "en"),
+  );
 
   async function remove(item: Item) {
     const label = pick(item.name, item.name_id);
     if (!window.confirm(t("deleteItemConfirm", { name: label }))) return;
     setError("");
     setNotice("");
-    setDeletingId(item.id);
+    setBusyId(item.id);
     try {
       const result = await api<ItemDeleteResult>(`/api/items/${item.id}`, { method: "DELETE" });
-      setItems((rows) => rows.filter((row) => row.id !== item.id));
+      setItems((rows) => {
+        if (result.deleted) return rows.filter((row) => row.id !== item.id);
+        if (result.archived && !showHidden) return rows.filter((row) => row.id !== item.id);
+        return rows.map((row) => (row.id === item.id ? { ...row, archived: true } : row));
+      });
       setNotice(result.archived ? t("itemArchived") : t("itemDeleted"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("updateFailed"));
     } finally {
-      setDeletingId(null);
+      setBusyId(null);
+    }
+  }
+
+  async function restore(item: Item) {
+    setError("");
+    setNotice("");
+    setBusyId(item.id);
+    try {
+      const next = await api<Item>(`/api/items/${item.id}/unarchive`, { method: "POST" });
+      setItems((rows) => rows.map((row) => (row.id === next.id ? next : row)));
+      setNotice(t("itemRestored"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("updateFailed"));
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -166,8 +201,38 @@ export function OpItems() {
       />
       {error && <div className="banner">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
-      <div className="card filter-card">
+      <div className="card filter-card form-grid">
         <input className="search" placeholder={t("searchSku")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <label>
+          {t("pickCategory")}
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">{t("all")}</option>
+            {cats.map((c) => (
+              <option key={c.id} value={c.id}>
+                {pick(c.name, c.name_id)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t("pickLocation")}
+          <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            <option value="">{t("all")}</option>
+            {locs.map((place) => (
+              <option key={place.id} value={place.id}>
+                {pick(place.name, place.name_id)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="chips">
+          <button className={`chip ${lowOnly ? "on" : ""}`} type="button" onClick={() => setLowOnly((v) => !v)}>
+            {t("lowStock")}
+          </button>
+          <button className={`chip ${showHidden ? "on" : ""}`} type="button" onClick={() => setShowHidden((v) => !v)}>
+            {t("showHidden")}
+          </button>
+        </div>
       </div>
       <div className="card table-wrap">
         <table>
@@ -189,16 +254,15 @@ export function OpItems() {
                 <td className="sku">{i.sku}</td>
                 <td>
                   <Link to={`/items/${i.id}`}>{pick(i.name, i.name_id)}</Link>
-                  {i.low_stock && <div className="stock low">{t("lowStock")}</div>}
+                  {i.archived ? <div className="stock low">{t("itemHidden")}</div> : null}
+                  {i.low_stock && !i.archived ? <div className="stock low">{t("lowStock")}</div> : null}
                 </td>
                 <td className="muted">{pick(i.category_name || "", i.category_name_id)}</td>
                 <td>
                   {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
                   {(i.reserved || 0) > 0 ? (
                     <div className="muted">{t("heldInCart", { qty: formatQty(i.reserved || 0) })}</div>
-                  ) : (
-                    <div className="muted">{money(i.fifo_cogs_cents || i.unit_cost_cents)}</div>
-                  )}
+                  ) : null}
                 </td>
                 <td>{money(i.fifo_cogs_cents || i.unit_cost_cents)}</td>
                 <td>{money(i.unit_price_cents)}</td>
@@ -208,14 +272,25 @@ export function OpItems() {
                     <Link className="btn ghost small" to={`/items/${i.id}`}>
                       {t("edit")}
                     </Link>
-                    <button
-                      className="btn danger-ghost small"
-                      type="button"
-                      disabled={deletingId === i.id}
-                      onClick={() => remove(i)}
-                    >
-                      {t("deleteNamed")}
-                    </button>
+                    {i.archived ? (
+                      <button
+                        className="btn ghost small"
+                        type="button"
+                        disabled={busyId === i.id}
+                        onClick={() => restore(i)}
+                      >
+                        {t("restoreItem")}
+                      </button>
+                    ) : (
+                      <button
+                        className="btn danger-ghost small"
+                        type="button"
+                        disabled={busyId === i.id}
+                        onClick={() => remove(i)}
+                      >
+                        {t("deleteNamed")}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
