@@ -290,7 +290,7 @@ export function ReportsPage() {
       {error && <div className="banner">{error}</div>}
       {tab !== "stock" && tab !== "ledger" && sales && (
         <>
-          <div className="row">
+          <div className="kpi-grid">
             <div className="card kpi">
               {t("revenue")}
               <b>{money(sales.revenue_cents)}</b>
