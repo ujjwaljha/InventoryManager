@@ -6,8 +6,8 @@ You need one Mac or Windows computer that stays on while the shop is open.
 EASIEST: use the real app (no Python)
 -------------------------------------
 1. Get Toko-Bangunan-Makmur-Windows.zip or Toko-Bangunan-Makmur-macOS.zip
-   (GitHub → Actions → “Build shop apps” → the green run → Artifacts,
-    or a Release if someone published one).
+   (GitHub → Releases → the latest version, or Actions → “Build shop apps”
+   → the green run → Artifacts).
 2. Unzip it on the Desktop.
 3. Double-click:
    • Windows: Toko Bangunan Makmur.exe  (inside the Toko Bangunan Makmur folder)

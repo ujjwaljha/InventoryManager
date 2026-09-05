@@ -67,3 +67,20 @@ jobs:
         with:
           name: Toko-Bangunan-Makmur-macOS
           path: Toko-Bangunan-Makmur-macOS.zip
+
+  release:
+    needs: [windows, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-apps
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist-apps/Toko-Bangunan-Makmur-Windows/Toko-Bangunan-Makmur-Windows.zip
+            dist-apps/Toko-Bangunan-Makmur-macOS/Toko-Bangunan-Makmur-macOS.zip
