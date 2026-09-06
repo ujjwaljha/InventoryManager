@@ -11,8 +11,11 @@ EASIEST: use the real app (no Python)
 2. Unzip it on the Desktop.
 3. Double-click:
    • Windows: Toko Bangunan Makmur.exe  (inside the Toko Bangunan Makmur folder)
-   • Mac: Toko Bangunan Makmur.app
-     First time: right-click → Open → Open
+   • Mac: unzip, then right-click “Open Toko Bangunan Makmur.command” → Open → Open.
+     That clears macOS “Verifying…” so the shop window can start.
+     You can also right-click Toko Bangunan Makmur.app → Open → Open.
+     If it still stops: System Settings → Privacy & Security → Open Anyway,
+     or paste in Terminal:  xattr -cr then the path to the .app, then open it.
 4. The till opens in the app window (not Chrome or Edge). Leave it open while you sell.
    Sign in once with username **admin** and password **makmur**. You stay signed in next time.
    The window size comes back as you left it. You never need to install Python.

@@ -1,0 +1,19 @@
+If the Mac says Verifying… then the shop never opens
+====================================================
+
+macOS is blocking a download it does not recognize. This is not a broken app.
+
+EASIEST
+1. Stay in this folder (next to Toko Bangunan Makmur.app).
+2. Right-click “Open Toko Bangunan Makmur.command” → Open → Open.
+   That removes the block and starts the shop.
+
+OR in Terminal, paste this (change the path if the app is not on the Desktop):
+
+  xattr -cr "$HOME/Desktop/Toko Bangunan Makmur.app"
+  open "$HOME/Desktop/Toko Bangunan Makmur.app"
+
+OR System Settings → Privacy & Security → scroll down → Open Anyway.
+
+Kalau Mac menulis Verifying… lalu berhenti: klik kanan
+“Open Toko Bangunan Makmur.command” → Open.

@@ -61,8 +61,29 @@ jobs:
           bash scripts/make_app_icns.sh
       - name: Build Toko Bangunan Makmur.app
         run: python -m PyInstaller --noconfirm --clean warung.spec
+      - name: Fix bundled Python library
+        run: python3 scripts/fix_macos_bundle.py "dist/Toko Bangunan Makmur.app"
+      - name: Ad-hoc sign and clear quarantine
+        run: |
+          APP="dist/Toko Bangunan Makmur.app"
+          xattr -cr "$APP" || true
+          codesign --force --sign - --entitlements scripts/macos_entitlements.plist "$APP/Contents/Frameworks/Python"
+          codesign --force --deep --sign - --entitlements scripts/macos_entitlements.plist "$APP"
+          file -b "$APP/Contents/Frameworks/Python" | grep -q "Mach-O"
+          codesign --verify --verbose=2 "$APP/Contents/Frameworks/Python"
+          codesign --verify --deep --verbose=2 "$APP"
       - name: Zip macOS app
-        run: ditto -c -k --keepParent "dist/Toko Bangunan Makmur.app" Toko-Bangunan-Makmur-macOS.zip
+        run: |
+          STAGE="dist/mac-release/Toko Bangunan Makmur"
+          mkdir -p "$STAGE"
+          ditto "dist/Toko Bangunan Makmur.app" "$STAGE/Toko Bangunan Makmur.app"
+          cp "scripts/Open Toko Bangunan Makmur.command" "$STAGE/"
+          cp "scripts/macos_entitlements.plist" "$STAGE/"
+          cp "scripts/macos-if-verifying-stops.txt" "$STAGE/If verifying stops.txt"
+          chmod +x "$STAGE/Open Toko Bangunan Makmur.command"
+          perl -pi -e 's/\r\n/\n/g' "$STAGE/Open Toko Bangunan Makmur.command"
+          xattr -cr "$STAGE" || true
+          ditto -c -k --keepParent "$STAGE" Toko-Bangunan-Makmur-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Toko-Bangunan-Makmur-macOS

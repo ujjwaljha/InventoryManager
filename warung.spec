@@ -16,7 +16,7 @@ datas = [
 binaries = []
 hiddenimports = collect_submodules("app")
 
-for pkg in (
+_collect = [
     "uvicorn",
     "fastapi",
     "starlette",
@@ -30,10 +30,11 @@ for pkg in (
     "httpx",
     "multipart",
     "webview",
-    "pythonnet",
-    "clr_loader",
     "tzdata",
-):
+]
+if sys.platform == "win32":
+    _collect += ["pythonnet", "clr_loader"]
+for pkg in _collect:
     try:
         extra_d, extra_b, extra_h = collect_all(pkg)
         datas += extra_d
@@ -142,9 +143,9 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": APP_NAME,
             "CFBundleDisplayName": APP_NAME,
-            "CFBundleShortVersionString": "1.5.0",
-            "CFBundleVersion": "1.5.0",
-            "CFBundleGetInfoString": "Toko Bangunan Makmur 1.5.0",
+            "CFBundleShortVersionString": "1.6.0",
+            "CFBundleVersion": "1.6.0",
+            "CFBundleGetInfoString": "Toko Bangunan Makmur 1.6.0",
             "NSHumanReadableCopyright": "Toko Bangunan Makmur",
             "NSHighResolutionCapable": True,
             "NSSupportsAutomaticGraphicsSwitching": True,
