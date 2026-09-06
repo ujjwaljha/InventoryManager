@@ -63,6 +63,31 @@ jobs:
         run: python -m PyInstaller --noconfirm --clean warung.spec
       - name: Fix bundled Python library
         run: python3 scripts/fix_macos_bundle.py "dist/Toko Bangunan Makmur.app"
+      - name: Smoke-test embedded Python
+        run: |
+          APP="dist/Toko Bangunan Makmur.app"
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          fw = Path("dist/Toko Bangunan Makmur.app/Contents/Frameworks")
+          z = fw / "base_library.zip"
+          enc = fw / "encodings" / "__init__.py"
+          has_zip = False
+          if z.is_file():
+              has_zip = any(n.replace("\\", "/").startswith("encodings/") for n in zipfile.ZipFile(z).namelist())
+          assert has_zip or enc.is_file(), "encodings missing from Mac app"
+          print("encodings ok")
+          PY
+          BIN="$APP/Contents/MacOS/Toko Bangunan Makmur"
+          set +e
+          OUT="$(perl -e 'alarm 8; exec @ARGV' "$BIN" 2>&1)"
+          STATUS=$?
+          set -e
+          echo "$OUT"
+          echo "$OUT" | grep -q "No module named 'encodings'" && exit 1
+          echo "$OUT" | grep -q "Failed to start embedded python" && exit 1
+          echo "$OUT" | grep -q "slice is not valid mach-o" && exit 1
+          echo "smoke-test exit $STATUS (GUI start is ok)"
       - name: Ad-hoc sign and clear quarantine
         run: |
           APP="dist/Toko Bangunan Makmur.app"
