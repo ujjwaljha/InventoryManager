@@ -7,6 +7,16 @@ from app.operator import DEMO_PASSWORD, DEMO_USERNAME
 from helpers import login
 
 
+def test_ui_locale_api_is_public(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("app.routers.ops.user_data_dir", lambda: tmp_path)
+    app = create_app(f"sqlite:///{tmp_path / 'locale.db'}")
+    client = TestClient(app)
+    written = client.put("/api/ui-locale", json={"locale": "en"})
+    assert written.status_code == 200, written.text
+    assert written.json()["locale"] == "en"
+    assert client.get("/api/ui-locale").json()["locale"] == "en"
+
+
 def test_login_required_for_shop_and_office(tmp_path: Path):
     app = create_app(f"sqlite:///{tmp_path / 'auth.db'}")
     locked = TestClient(app)

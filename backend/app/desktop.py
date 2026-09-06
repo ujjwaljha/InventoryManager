@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,47 @@ class WindowPrefs:
 
 def window_prefs_path(data_dir: Path) -> Path:
     return data_dir / "window.json"
+
+
+def ui_locale_path(data_dir: Path) -> Path:
+    return data_dir / "ui_locale"
+
+
+def detect_os_locale() -> str:
+    for key in ("IM_LOCALE", "LANG", "LANGUAGE"):
+        val = (os.environ.get(key) or "").lower().replace("-", "_")
+        if val.startswith("en"):
+            return "en"
+        if val.startswith("id"):
+            return "id"
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            langid = int(ctypes.windll.kernel32.GetUserDefaultUILanguage())
+            if (langid & 0x3FF) == 0x09:
+                return "en"
+        except Exception:
+            pass
+    return "id"
+
+
+def load_ui_locale(data_dir: Path) -> str:
+    path = ui_locale_path(data_dir)
+    try:
+        val = path.read_text(encoding="utf-8").strip().lower()
+        if val in {"en", "id"}:
+            return val
+    except OSError:
+        pass
+    return detect_os_locale()
+
+
+def save_ui_locale(locale: str, data_dir: Path) -> str:
+    locale = "en" if str(locale).strip().lower() == "en" else "id"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    ui_locale_path(data_dir).write_text(locale + "\n", encoding="utf-8")
+    return locale
 
 
 def webview_storage_path(data_dir: Path) -> Path:

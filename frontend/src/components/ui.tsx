@@ -191,10 +191,12 @@ export function ItemPicker({
   onAdd,
   costMode = false,
   compact = false,
+  browse = false,
 }: {
   onAdd: (item: Item, qty: number, extra?: number) => void;
   costMode?: boolean;
   compact?: boolean;
+  browse?: boolean;
 }) {
   const { t, pick, locale } = useI18n();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -299,17 +301,22 @@ export function ItemPicker({
     if (exact) selectItem(exact);
   }, [q, items, picked]);
 
-  const shown = items
+  const tag = locale === "id" ? "id" : "en";
+  const matches = items
     .filter((i) => {
-      if (!q.trim()) return picked ? i.id === picked.id : true;
+      if (!q.trim()) return true;
       const n = q.toLowerCase();
       return (
         i.sku.toLowerCase().includes(n) ||
         i.name.toLowerCase().includes(n) ||
-        (i.name_id || "").toLowerCase().includes(n)
+        (i.name_id || "").toLowerCase().includes(n) ||
+        (i.category_name || "").toLowerCase().includes(n) ||
+        (i.category_name_id || "").toLowerCase().includes(n)
       );
     })
-    .slice(0, 8);
+    .sort((a, b) => pick(a.name, a.name_id).localeCompare(pick(b.name, b.name_id), tag));
+  const shown = browse ? matches : matches.slice(0, 8);
+  const showList = Boolean(!picked && (browse || q.trim()));
 
   return (
     <div className="form-grid">
@@ -319,12 +326,18 @@ export function ItemPicker({
           <input
             ref={searchRef}
             className="search"
-            placeholder={t("searchSku")}
+            placeholder={browse ? t("filterItems") : t("searchSku")}
             value={picked ? pick(picked.name, picked.name_id) : q}
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
+            onFocus={() => {
+              if (picked) {
+                setPicked(null);
+                setQ("");
+              }
+            }}
             onChange={(e) => {
               setPicked(null);
               setQ(e.target.value);
@@ -334,7 +347,11 @@ export function ItemPicker({
         </label>
         <ScanButton onCode={handleScan} disabled={!items.length} />
       </div>
-      {compact ? null : (
+      {browse ? (
+        <p className="muted" style={{ margin: 0 }}>
+          {t("pickItemHint")}
+        </p>
+      ) : compact ? null : (
         <>
           <p className="muted" style={{ margin: 0 }}>
             {t("scanSkuHint")}
@@ -344,24 +361,33 @@ export function ItemPicker({
           </p>
         </>
       )}
-      {!picked && q && (
-        <div className="pick-list">
-          {shown.map((i) => (
-            <button
-              type="button"
-              className="pick-option"
-              key={i.id}
-              onClick={() => selectItem(i)}
-            >
-              <b>{pick(i.name, i.name_id)}</b>
-              <span className="muted">
-                {i.sku} · {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
-                {(i.reserved || 0) > 0 ? ` · ${t("heldInCart", { qty: formatQty(i.reserved || 0) })}` : ""}
-              </span>
-            </button>
-          ))}
+      {showList ? (
+        <div className={`pick-list ${browse ? "tall" : ""}`}>
+          {shown.length === 0 ? (
+            <p className="muted empty" style={{ margin: 0, padding: "10px 12px" }}>
+              {t("noMatchingItems")}
+            </p>
+          ) : (
+            shown.map((i) => (
+              <button
+                type="button"
+                className="pick-option"
+                key={i.id}
+                onClick={() => selectItem(i)}
+              >
+                <b>{pick(i.name, i.name_id)}</b>
+                <span className="muted">
+                  {i.sku}
+                  {i.category_name ? ` · ${pick(i.category_name, i.category_name_id)}` : ""}
+                  {" · "}
+                  {formatQty(i.available ?? i.quantity)} {unitLabel(i.unit, locale)}
+                  {(i.reserved || 0) > 0 ? ` · ${t("heldInCart", { qty: formatQty(i.reserved || 0) })}` : ""}
+                </span>
+              </button>
+            ))
+          )}
         </div>
-      )}
+      ) : null}
       <label>
         {t("quantity")}
         <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" onKeyDown={onQtyKeyDown} />

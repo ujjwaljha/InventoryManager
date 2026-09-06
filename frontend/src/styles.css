@@ -169,7 +169,8 @@ textarea:focus-visible,
 }
 
 .card.row .price {
-  max-width: 48%;
+  flex: 0 0 auto;
+  max-width: none;
 }
 
 .split {
@@ -192,8 +193,8 @@ textarea:focus-visible,
 .split-amount {
   flex: 0 0 auto;
   text-align: right;
-  max-width: 48%;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  min-width: max-content;
 }
 
 .finder-filters {
@@ -331,7 +332,8 @@ a.kpi:hover {
   letter-spacing: -0.02em;
   text-align: right;
   flex-shrink: 0;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  min-width: max-content;
 }
 
 .stock {
@@ -1548,7 +1550,7 @@ html.desktop-app .main-pane {
 }
 
 .result-row .price {
-  max-width: 48%;
+  flex: 0 0 auto;
 }
 
 a.result-row:hover,
@@ -1617,6 +1619,11 @@ button.result-row:hover {
   border-radius: var(--control);
   overflow: hidden;
   background: #fff;
+}
+
+.pick-list.tall {
+  max-height: 16rem;
+  overflow: auto;
 }
 
 .pick-option {

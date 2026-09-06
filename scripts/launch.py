@@ -84,10 +84,20 @@ LANG = {
 }
 
 
+def ui_locale() -> str:
+    try:
+        from app.desktop import load_ui_locale
+        from app.paths import user_data_dir
+
+        return load_ui_locale(user_data_dir())
+    except Exception:
+        if os.environ.get("LANG", "").lower().startswith("en"):
+            return "en"
+        return "id"
+
+
 def t(key: str) -> str:
-    locale = "id"
-    if os.environ.get("LANG", "").lower().startswith("en"):
-        locale = "en"
+    locale = ui_locale()
     return LANG.get(locale, LANG["id"]).get(key, LANG["en"][key])
 
 
@@ -306,6 +316,41 @@ def _restore_from(src: Path) -> bool:
         return False
 
 
+def _replace_native_menu(window: object, menu_list: list) -> None:
+    """Swap the WinForms menu bar so EN/ID can change without restarting."""
+    native = getattr(window, "native", None)
+    setter = getattr(native, "set_window_menu", None)
+    if native is None or not callable(setter):
+        return
+    try:
+        controls = [native.Controls[i] for i in range(int(native.Controls.Count))]
+    except Exception:
+        try:
+            controls = list(native.Controls)
+        except Exception:
+            controls = []
+    for control in controls:
+        try:
+            name = control.GetType().Name
+        except Exception:
+            name = ""
+        if name != "MenuStrip":
+            continue
+        try:
+            native.Controls.Remove(control)
+            control.Dispose()
+        except Exception:
+            pass
+    try:
+        native.MainMenuStrip = None
+    except Exception:
+        pass
+    try:
+        setter(menu_list)
+    except Exception:
+        pass
+
+
 def _info(message: str) -> None:
     try:
         import tkinter
@@ -339,6 +384,18 @@ def run_desktop(runtime: ShopRuntime | None) -> None:
     data_dir = user_data_dir()
     prefs = load_window_prefs(data_dir, port=PORT)
     start_url = sanitize_local_url(prefs.url, port=PORT)
+    menu_hooks: dict = {}
+
+    class DesktopApi:
+        def set_ui_locale(self, locale: str = "") -> str:
+            from app.desktop import save_ui_locale
+
+            saved = save_ui_locale(str(locale or ""), data_dir)
+            apply = menu_hooks.get("apply_menus")
+            if callable(apply):
+                apply()
+            return saved
+
     create_kwargs: dict = {
         "width": prefs.width,
         "height": prefs.height,
@@ -353,7 +410,7 @@ def run_desktop(runtime: ShopRuntime | None) -> None:
         create_kwargs["x"] = prefs.x
         create_kwargs["y"] = prefs.y
 
-    window = webview.create_window(t("title"), start_url, **create_kwargs)
+    window = webview.create_window(t("title"), start_url, js_api=DesktopApi(), **create_kwargs)
     state = WindowPrefs(
         width=prefs.width,
         height=prefs.height,
@@ -482,25 +539,25 @@ def run_desktop(runtime: ShopRuntime | None) -> None:
     window.events.loaded += on_loaded
     window.events.closed += on_closed
 
-    file_items = [
-        MenuAction(t("save"), save_copy),
-        MenuAction(t("load"), load_copy),
-        MenuSeparator(),
-        MenuAction(t("print"), print_page),
-        MenuAction(t("copy"), copy_lan),
-    ]
-    shop_items = [
-        MenuAction(t("open_till"), show_till),
-        MenuAction(t("open_shop"), show_shop),
-    ]
-    if sys.platform == "darwin":
-        menu = [
-            Menu("__app__", [MenuAction(t("about"), show_about)]),
-            Menu(t("menu_file"), file_items),
-            Menu(t("menu_shop"), shop_items),
+    def build_menu():
+        file_items = [
+            MenuAction(t("save"), save_copy),
+            MenuAction(t("load"), load_copy),
+            MenuSeparator(),
+            MenuAction(t("print"), print_page),
+            MenuAction(t("copy"), copy_lan),
         ]
-    else:
-        menu = [
+        shop_items = [
+            MenuAction(t("open_till"), show_till),
+            MenuAction(t("open_shop"), show_shop),
+        ]
+        if sys.platform == "darwin":
+            return [
+                Menu("__app__", [MenuAction(t("about"), show_about)]),
+                Menu(t("menu_file"), file_items),
+                Menu(t("menu_shop"), shop_items),
+            ]
+        return [
             Menu(
                 t("menu_file"),
                 [*file_items, MenuSeparator(), MenuAction(t("stop"), stop)],
@@ -509,6 +566,24 @@ def run_desktop(runtime: ShopRuntime | None) -> None:
             Menu(t("menu_shop"), shop_items),
             Menu(t("menu_help"), [MenuAction(t("about"), show_about)]),
         ]
+
+    def apply_menus() -> None:
+        new_menu = build_menu()
+        window.menu = new_menu
+        loc = getattr(window, "localization", None)
+        if isinstance(loc, dict):
+            loc.update(
+                {
+                    "global.quitConfirmation": t("quit_confirm"),
+                    "global.quit": t("stop"),
+                    "global.cancel": t("cancel"),
+                    "cocoa.menu.about": t("about"),
+                }
+            )
+        _replace_native_menu(window, new_menu)
+
+    menu_hooks["apply_menus"] = apply_menus
+    menu = build_menu()
 
     icon = app_icon_file(bundle_root())
     start_kwargs = webview_start_kwargs(

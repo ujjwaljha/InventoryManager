@@ -27,12 +27,18 @@ _PUBLIC_GET = frozenset(
     {
         "/api/health",
         "/api/operator/status",
+        "/api/ui-locale",
     }
 )
 _PUBLIC_POST = frozenset(
     {
         "/api/operator/login",
         "/api/operator/setup",
+    }
+)
+_PUBLIC_PUT = frozenset(
+    {
+        "/api/ui-locale",
     }
 )
 
@@ -200,6 +206,8 @@ def _is_public(request: Request) -> bool:
     if request.method in ("GET", "HEAD") and path in _PUBLIC_GET:
         return True
     if request.method == "POST" and path in _PUBLIC_POST:
+        return True
+    if request.method == "PUT" and path in _PUBLIC_PUT:
         return True
     if request.method == "OPTIONS":
         return True

@@ -1,5 +1,11 @@
 const FLAG = "im_desktop";
 
+type DesktopBridge = {
+  api?: {
+    set_ui_locale?: (locale: string) => Promise<string> | string;
+  };
+};
+
 function platformClass(): string {
   const ua = navigator.userAgent;
   const plat = navigator.platform || "";
@@ -23,3 +29,17 @@ export function markDesktopApp(): void {
 
 markDesktopApp();
 window.addEventListener("pywebviewready", markDesktopApp);
+
+export function syncDesktopLocale(locale: string): void {
+  const apiFn = () => (window as Window & { pywebview?: DesktopBridge }).pywebview?.api?.set_ui_locale;
+  const apply = () => {
+    const fn = apiFn();
+    if (typeof fn === "function") {
+      void Promise.resolve(fn(locale)).catch(() => undefined);
+    }
+  };
+  apply();
+  if (typeof apiFn() !== "function" && (isDesktopApp() || "pywebview" in window)) {
+    window.addEventListener("pywebviewready", apply, { once: true });
+  }
+}

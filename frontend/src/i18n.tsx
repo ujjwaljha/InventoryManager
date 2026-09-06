@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api } from "./api";
+import { syncDesktopLocale } from "./desktop";
 
 export type Lang = "en" | "id";
 
@@ -29,6 +31,9 @@ const STRINGS = {
     all: "All",
     searchShop: "Search cement, paint, nails…",
     searchSku: "Scan barcode or type SKU",
+    filterItems: "Type to filter by name, SKU, or category",
+    pickItemHint: "Tap a product in the list, or type to filter, then tap it. A scanner still adds the line.",
+    noMatchingItems: "No product matches that filter.",
     scanSkuHint: "A barcode scanner types the SKU and Enter. That adds the line; it does not complete the sale.",
     scanBarcode: "Scan",
     scanCameraHint: "Scan uses the camera or a photo of the barcode.",
@@ -294,7 +299,7 @@ const STRINGS = {
     confirmReceive: "Receive these goods into stock? Quantity and cost cannot be changed after this.",
     discardDraft: "Discard draft",
     confirmDiscardDraft: "Discard this restock draft? Nothing has been added to stock yet.",
-    restockAddHint: "The same SKU again adds to the quantity. Check the unit cost before you receive.",
+    restockAddHint: "Pick a product from the list (or type to filter). The same SKU again adds to the quantity.",
     unitCost: "Unit cost (IDR)",
     receive: "Receive",
     received: "received",
@@ -445,6 +450,9 @@ const STRINGS = {
     all: "Semua",
     searchShop: "Cari semen, cat, paku…",
     searchSku: "Scan barcode atau ketik SKU",
+    filterItems: "Ketik untuk saring nama, SKU, atau kategori",
+    pickItemHint: "Ketuk barang di daftar, atau ketik untuk menyaring lalu ketuk. Scanner tetap menambah baris.",
+    noMatchingItems: "Tidak ada barang yang cocok.",
     scanSkuHint: "Scanner barcode mengetik SKU lalu Enter. Baris ditambah; penjualan tidak diselesaikan.",
     scanBarcode: "Pindai",
     scanCameraHint: "Pindai memakai kamera atau foto barcode.",
@@ -710,7 +718,7 @@ const STRINGS = {
     confirmReceive: "Terima barang ini ke stok? Jumlah dan harga tidak bisa diubah setelah ini.",
     discardDraft: "Buang draf",
     confirmDiscardDraft: "Buang draf restok ini? Stok belum bertambah.",
-    restockAddHint: "SKU yang sama menambah jumlah. Cek harga modal sebelum menekan Terima.",
+    restockAddHint: "Pilih barang dari daftar (atau ketik untuk saring). SKU yang sama menambah jumlah.",
     unitCost: "Harga modal (IDR)",
     receive: "Terima",
     received: "diterima",
@@ -880,6 +888,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+    syncDesktopLocale(locale);
+    api("/api/ui-locale", {
+      method: "PUT",
+      body: JSON.stringify({ locale }),
+    }).catch(() => undefined);
   }, [locale]);
 
   const value = useMemo<I18nValue>(() => {

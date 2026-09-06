@@ -25,6 +25,8 @@ from app.operator import (
     verify_password,
 )
 from app.schemas import LoginIn, SettingsIn, SetupIn, UserCreateIn, UserPatchIn
+from app.desktop import load_ui_locale, save_ui_locale
+from app.paths import user_data_dir
 from app.serialize import settings_out
 from app.qty import from_store, to_store
 from app.services.checkout import get_settings
@@ -32,6 +34,17 @@ from app.services.stock import StockError, apply_movement
 from app.timeutil import utcnow
 
 router = APIRouter(prefix="/api", tags=["ops"])
+
+
+@router.get("/ui-locale")
+def read_ui_locale():
+    return {"locale": load_ui_locale(user_data_dir())}
+
+
+@router.put("/ui-locale")
+def write_ui_locale(body: dict):
+    raw = body.get("locale") if isinstance(body, dict) else None
+    return {"locale": save_ui_locale(str(raw or ""), user_data_dir())}
 
 
 @router.get("/settings")

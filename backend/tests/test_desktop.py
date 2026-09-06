@@ -1,3 +1,5 @@
+import sys
+
 from app.desktop import (
     APP_ID,
     MIN_HEIGHT,
@@ -59,7 +61,47 @@ def test_webview_keeps_session_cookies(tmp_path):
 
 def test_windows_app_id_is_stable():
     assert APP_ID == "id.tokobangunanmakmur.shop"
-    assert set_windows_app_id() is False
+    assert set_windows_app_id() is (sys.platform == "win32")
+
+
+def test_launch_menu_follows_saved_locale(tmp_path, monkeypatch):
+    import importlib
+    import sys
+    from pathlib import Path
+
+    from app.desktop import save_ui_locale
+
+    monkeypatch.setattr("app.paths.user_data_dir", lambda: tmp_path)
+    scripts = str(Path(__file__).resolve().parents[2] / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    save_ui_locale("en", tmp_path)
+    launch = importlib.import_module("launch")
+    importlib.reload(launch)
+    assert launch.t("menu_file") == "File"
+    assert launch.t("menu_view") == "View"
+    assert launch.t("menu_shop") == "Shop"
+    assert launch.t("menu_help") == "Help"
+    save_ui_locale("id", tmp_path)
+    assert launch.t("menu_file") == "Berkas"
+    assert launch.t("menu_view") == "Tampilan"
+
+
+def test_ui_locale_roundtrip_and_env(tmp_path, monkeypatch):
+    from app.desktop import load_ui_locale, save_ui_locale, ui_locale_path
+
+    monkeypatch.delenv("IM_LOCALE", raising=False)
+    monkeypatch.delenv("LANG", raising=False)
+    monkeypatch.delenv("LANGUAGE", raising=False)
+    assert save_ui_locale("en", tmp_path) == "en"
+    assert ui_locale_path(tmp_path).read_text(encoding="utf-8").strip() == "en"
+    assert load_ui_locale(tmp_path) == "en"
+    assert save_ui_locale("ID", tmp_path) == "id"
+    assert load_ui_locale(tmp_path) == "id"
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.setenv("IM_LOCALE", "en")
+    assert load_ui_locale(empty) == "en"
 
 
 def test_app_icon_files_exist():

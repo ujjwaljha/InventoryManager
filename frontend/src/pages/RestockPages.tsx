@@ -295,7 +295,7 @@ export function RestockDetail() {
           <p className="muted" style={{ margin: 0 }}>
             {t("restockAddHint")}
           </p>
-          <ItemPicker costMode onAdd={(item, qty, extra) => add(item, qty, extra)} />
+          <ItemPicker browse costMode onAdd={(item, qty, extra) => add(item, qty, extra)} />
         </div>
       )}
       <div className="card table-wrap">
