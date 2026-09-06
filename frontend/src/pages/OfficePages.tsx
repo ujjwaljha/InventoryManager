@@ -238,7 +238,7 @@ export function CreditPage() {
           </button>
         </div>
       </div>
-      <div className="row">
+      <div className="kpi-grid wide">
         <div className="card kpi">
           {t("unpaid")}
           <b>{data.invoice_count}</b>

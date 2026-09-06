@@ -245,45 +245,57 @@ function OpShell() {
       <aside className="sidebar desktop-only">
         <Brand to="/" kicker={t("backOffice")} name={name} />
         <nav className="sidebar-nav">
-          <div className="nav-group-label">{t("navSales")}</div>
-          <NavLink to="/" end className={linkClass}>
-            {t("home")}
-          </NavLink>
-          <NavLink to="/till" className={linkClass}>
-            {t("till")}
-          </NavLink>
-          <NavLink to="/receipts" className={linkClass}>
-            {t("receipts")}
-          </NavLink>
-          <NavLink to="/credit" className={linkClass}>
-            {t("credit")}
-          </NavLink>
-          <NavLink to="/customers" className={linkClass}>
-            {t("customerFile")}
-          </NavLink>
-          <NavLink to="/orders" className={linkClass}>
-            {t("orders")}
-          </NavLink>
-          <div className="nav-group-label">{t("navStock")}</div>
-          <NavLink to="/items" className={linkClass}>
-            {t("items")}
-          </NavLink>
-          <NavLink to="/restock" className={linkClass}>
-            {t("restock")}
-          </NavLink>
-          <NavLink to="/damage" className={linkClass}>
-            {t("damage")}
-          </NavLink>
-          <NavLink to="/returns" className={linkClass}>
-            {t("returns")}
-          </NavLink>
-          <div className="nav-group-label">{t("navOffice")}</div>
-          <NavLink to="/reports" className={linkClass}>
-            {t("reports")}
-          </NavLink>
-          <NavLink to="/settings" className={linkClass}>
-            {t("settings")}
-          </NavLink>
+          <div className="nav-group" role="group" aria-label={t("navSales")}>
+            <div className="nav-group-label">{t("navSales")}</div>
+            <div className="nav-group-links">
+              <NavLink to="/" end className={linkClass}>
+                {t("home")}
+              </NavLink>
+              <NavLink to="/till" className={linkClass}>
+                {t("till")}
+              </NavLink>
+              <NavLink to="/receipts" className={linkClass}>
+                {t("receipts")}
+              </NavLink>
+              <NavLink to="/credit" className={linkClass}>
+                {t("credit")}
+              </NavLink>
+              <NavLink to="/customers" className={linkClass}>
+                {t("customerFile")}
+              </NavLink>
+              <NavLink to="/orders" className={linkClass}>
+                {t("orders")}
+              </NavLink>
+            </div>
+          </div>
+          <div className="nav-group" role="group" aria-label={t("navStock")}>
+            <div className="nav-group-label">{t("navStock")}</div>
+            <div className="nav-group-links">
+              <NavLink to="/items" className={linkClass}>
+                {t("items")}
+              </NavLink>
+              <NavLink to="/restock" className={linkClass}>
+                {t("restock")}
+              </NavLink>
+              <NavLink to="/damage" className={linkClass}>
+                {t("damage")}
+              </NavLink>
+              <NavLink to="/returns" className={linkClass}>
+                {t("returns")}
+              </NavLink>
+            </div>
+          </div>
+          <div className="nav-group" role="group" aria-label={t("navOffice")}>
+            <div className="nav-group-label">{t("navOffice")}</div>
+            <div className="nav-group-links">
+              <NavLink to="/reports" className={linkClass}>
+                {t("reports")}
+              </NavLink>
+              <NavLink to="/settings" className={linkClass}>
+                {t("settings")}
+              </NavLink>
+            </div>
+          </div>
         </nav>
         <div className="sidebar-foot">
           <NavLink to="/shop" className="btn ghost block">

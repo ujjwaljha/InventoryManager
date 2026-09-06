@@ -29,7 +29,7 @@ export function OpDashboard() {
           </Link>
         }
       />
-      <div className="row">
+      <div className="kpi-grid wide">
         <div className="card kpi">
           {t("skus")}
           <b>{data.sku_count}</b>
