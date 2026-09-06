@@ -361,16 +361,41 @@ a.kpi:hover {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.1s ease,
+    filter 0.1s ease;
 }
 
 .btn:hover:not(:disabled) {
   background: var(--forest-2);
 }
 
+.btn:active:not(:disabled),
+.btn.is-pressed:not(:disabled) {
+  transform: translateY(1px) scale(0.97);
+  box-shadow: inset 0 2px 8px rgba(26, 22, 18, 0.28);
+  filter: brightness(0.92);
+}
+
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.btn.is-busy {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.btn.just-done,
+.btn.just-done:hover:not(:disabled) {
+  background: var(--ok);
+  color: #f7f3ea;
+  border-color: transparent;
+  filter: none;
 }
 
 .btn.terra {
@@ -390,6 +415,20 @@ a.kpi:hover {
 .btn.ghost:hover:not(:disabled) {
   background: rgba(30, 77, 58, 0.06);
   border-color: #c9bba8;
+}
+
+.btn.ghost:active:not(:disabled),
+.btn.ghost.is-pressed:not(:disabled) {
+  background: rgba(30, 77, 58, 0.16);
+  border-color: var(--leaf);
+  filter: none;
+}
+
+.btn.ghost.just-done,
+.btn.ghost.just-done:hover:not(:disabled) {
+  background: var(--ok);
+  color: #f7f3ea;
+  border-color: var(--ok);
 }
 
 .btn.small {
@@ -574,6 +613,12 @@ a.kpi:hover {
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   color: var(--ink-soft);
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+
+.lang-switch button:active,
+.lang-switch button.is-pressed {
+  transform: scale(0.94);
 }
 
 .lang-switch button.on {
@@ -704,6 +749,12 @@ a.kpi:hover {
   white-space: nowrap;
   cursor: pointer;
   color: var(--ink-soft);
+  transition: transform 0.1s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.chip:active,
+.chip.is-pressed {
+  transform: scale(0.96);
 }
 
 .chip.on {
@@ -1221,6 +1272,11 @@ tbody tr:hover {
     background: rgba(30, 77, 58, 0.06);
     color: var(--forest-2);
   }
+  .sidebar a:not(.btn):active,
+  .sidebar a:not(.btn).is-pressed {
+    background: rgba(30, 77, 58, 0.14);
+    transform: scale(0.98);
+  }
   .sidebar a.active {
     background: var(--forest);
     color: #f7f3ea;
@@ -1469,6 +1525,12 @@ html.desktop-app .main-pane {
   border-color: var(--leaf);
 }
 
+.more-link:active,
+.more-link.is-pressed {
+  transform: scale(0.98);
+  background: rgba(30, 77, 58, 0.05);
+}
+
 .more-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1558,6 +1620,13 @@ button.result-row:hover {
   background: rgba(30, 77, 58, 0.045);
 }
 
+a.result-row:active,
+a.result-row.is-pressed,
+button.result-row:active,
+button.result-row.is-pressed {
+  background: rgba(30, 77, 58, 0.1);
+}
+
 .till-desk {
   display: grid;
   gap: 14px;
@@ -1645,6 +1714,11 @@ button.result-row:hover {
 
 .pick-option:hover {
   background: rgba(30, 77, 58, 0.05);
+}
+
+.pick-option:active,
+.pick-option.is-pressed {
+  background: rgba(30, 77, 58, 0.12);
 }
 
 @media (min-width: 900px) {

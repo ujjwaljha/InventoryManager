@@ -8,6 +8,41 @@ import { receiptPlainText, shareReceipt } from "../receiptShare";
 import { matchScannedCode, shortScanCode } from "../sku";
 import type { Invoice, Item, Settings, Shopper, Supplier } from "../types";
 
+export function useFlashAction(holdMs = 1600) {
+  const [phase, setPhase] = useState<"idle" | "busy" | "done">("idle");
+  const busyRef = useRef(false);
+  const timer = useRef(0);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
+    if (busyRef.current) return undefined;
+    busyRef.current = true;
+    setPhase("busy");
+    try {
+      const result = await fn();
+      setPhase("done");
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => {
+        busyRef.current = false;
+        setPhase("idle");
+      }, holdMs);
+      return result;
+    } catch (error) {
+      busyRef.current = false;
+      setPhase("idle");
+      throw error;
+    }
+  }
+
+  return {
+    busy: phase === "busy",
+    done: phase === "done",
+    run,
+    className: phase === "done" ? "just-done" : phase === "busy" ? "is-busy" : "",
+  };
+}
+
 export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
   const { t, pick, locale } = useI18n();
   return (

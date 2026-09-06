@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { FinderBar, InvoiceResultCard, PAGE_SIZE, Pager, ResultList, buildQuery, useDebounced, type PageResult } from "../components/Finder";
-import { DocToolbar, ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt } from "../components/ui";
+import { DocToolbar, ItemPicker, PageHeader, ShareReceiptButton, StatusTag, ThermalReceipt, useFlashAction } from "../components/ui";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, rupiahFromCents, todayInput, when } from "../money";
 import type { CreditReport, DamageNote, Invoice, Item, SupplierReturn } from "../types";
@@ -561,6 +561,7 @@ export function MorePage() {
 
 export function DueDateForm({ invoice, onSaved }: { invoice: Invoice; onSaved: (inv: Invoice) => void }) {
   const { t } = useI18n();
+  const flash = useFlashAction();
   const [due, setDue] = useState(invoice.due_date || "");
   const [error, setError] = useState("");
   useEffect(() => {
@@ -570,23 +571,25 @@ export function DueDateForm({ invoice, onSaved }: { invoice: Invoice; onSaved: (
   return (
     <form
       className="row"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        if (!due) return;
+        if (!due || flash.busy) return;
         setError("");
-        try {
-          onSaved(await api<Invoice>(`/api/invoices/${invoice.id}/due`, { method: "PATCH", body: JSON.stringify({ due_date: due }) }));
-        } catch (err) {
-          setError(err instanceof Error ? err.message : t("couldNotAdd"));
-        }
+        flash
+          .run(async () => {
+            onSaved(await api<Invoice>(`/api/invoices/${invoice.id}/due`, { method: "PATCH", body: JSON.stringify({ due_date: due }) }));
+          })
+          .catch((err) => {
+            setError(err instanceof Error ? err.message : t("couldNotAdd"));
+          });
       }}
     >
       <label>
         {t("dueDate")}
         <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
       </label>
-      <button className="btn ghost" type="submit">
-        {t("save")}
+      <button className={`btn ghost ${flash.className}`} type="submit" disabled={!due || flash.busy}>
+        {flash.busy ? t("saving") : flash.done ? t("saved") : t("save")}
       </button>
       {error ? <span className="banner">{error}</span> : null}
     </form>
@@ -595,6 +598,7 @@ export function DueDateForm({ invoice, onSaved }: { invoice: Invoice; onSaved: (
 
 export function PaymentForm({ invoice, onPaid }: { invoice: Invoice; onPaid: (inv: Invoice) => void }) {
   const { t } = useI18n();
+  const flash = useFlashAction();
   const remaining = invoice.balance_cents ?? invoice.total_cents;
   const [amount, setAmount] = useState(String(rupiahFromCents(remaining)));
   const [error, setError] = useState("");
@@ -602,27 +606,30 @@ export function PaymentForm({ invoice, onPaid }: { invoice: Invoice; onPaid: (in
   return (
     <form
       className="row"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
+        if (flash.busy) return;
         setError("");
-        try {
-          onPaid(
-            await api<Invoice>(`/api/invoices/${invoice.id}/pay`, {
-              method: "POST",
-              body: JSON.stringify({ amount_cents: centsFromRupiah(amount) }),
-            }),
-          );
-        } catch (err) {
-          setError(err instanceof Error ? err.message : t("couldNotAdd"));
-        }
+        flash
+          .run(async () => {
+            onPaid(
+              await api<Invoice>(`/api/invoices/${invoice.id}/pay`, {
+                method: "POST",
+                body: JSON.stringify({ amount_cents: centsFromRupiah(amount) }),
+              }),
+            );
+          })
+          .catch((err) => {
+            setError(err instanceof Error ? err.message : t("couldNotAdd"));
+          });
       }}
     >
       <label>
         {t("payAmount")}
         <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" />
       </label>
-      <button className="btn ghost" type="submit">
-        {t("recordPayment")}
+      <button className={`btn ghost ${flash.className}`} type="submit" disabled={flash.busy}>
+        {flash.busy ? t("saving") : flash.done ? t("saved") : t("recordPayment")}
       </button>
       <span className="muted">
         {t("remaining")} {money(remaining)}

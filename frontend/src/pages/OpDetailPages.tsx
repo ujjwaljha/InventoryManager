@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { DocToolbar, InvoiceSheet, PageHeader, SharePanel, ShareReceiptButton, ThermalReceipt } from "../components/ui";
+import { DocToolbar, InvoiceSheet, PageHeader, SharePanel, ShareReceiptButton, ThermalReceipt, useFlashAction } from "../components/ui";
 import { UserAdmin } from "../auth";
 import { DueDateForm, PaymentForm } from "./OfficePages";
 import { type MsgKey, useI18n } from "../i18n";
@@ -23,6 +23,7 @@ export function OpItemDetail() {
   const [notice, setNotice] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const saveFlash = useFlashAction();
   const nav = useNavigate();
 
   async function load() {
@@ -99,25 +100,27 @@ export function OpItemDetail() {
     setError("");
     setNotice("");
     try {
-      await api(`/api/items/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: fd.get("name"),
-          name_id: fd.get("name_id"),
-          sku: fd.get("sku"),
-          description: fd.get("description"),
-          description_id: fd.get("description_id"),
-          unit: fd.get("unit") || item.unit,
-          unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
-          unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
-          reorder_point: Number(fd.get("reorder")),
-          category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
-          location_id: fd.get("location_id") ? Number(fd.get("location_id")) : null,
-          notes: fd.get("notes"),
-        }),
+      await saveFlash.run(async () => {
+        await api(`/api/items/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: fd.get("name"),
+            name_id: fd.get("name_id"),
+            sku: fd.get("sku"),
+            description: fd.get("description"),
+            description_id: fd.get("description_id"),
+            unit: fd.get("unit") || item.unit,
+            unit_price_cents: centsFromRupiah(String(fd.get("price") || "0")),
+            unit_cost_cents: centsFromRupiah(String(fd.get("cost") || "0")),
+            reorder_point: Number(fd.get("reorder")),
+            category_id: fd.get("category_id") ? Number(fd.get("category_id")) : null,
+            location_id: fd.get("location_id") ? Number(fd.get("location_id")) : null,
+            notes: fd.get("notes"),
+          }),
+        });
+        setNotice(t("saved"));
+        await load();
       });
-      setNotice(t("saved"));
-      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("updateFailed"));
     }
@@ -249,8 +252,8 @@ export function OpItemDetail() {
           {t("notes")}
           <input name="notes" defaultValue={item.notes} />
         </label>
-        <button className="btn" type="submit">
-          {t("save")}
+        <button className={`btn ${saveFlash.className}`} type="submit" disabled={saveFlash.busy}>
+          {saveFlash.busy ? t("saving") : saveFlash.done ? t("saved") : t("save")}
         </button>
       </form>
       {item.archived ? null : (
@@ -542,6 +545,7 @@ export function OpInvoiceDetail() {
 
 export function OpSettings() {
   const { t } = useI18n();
+  const flash = useFlashAction();
   const [s, setS] = useState<Settings | null>(null);
   const [saved, setSaved] = useState(false);
   useEffect(() => {
@@ -551,25 +555,31 @@ export function OpSettings() {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const next = await api<Settings>("/api/settings", {
-      method: "PATCH",
-      body: JSON.stringify({
-        name: fd.get("name"),
-        address: fd.get("address"),
-        phone: fd.get("phone"),
-        currency_symbol: "Rp",
-        currency_code: "IDR",
-        tax_rate_bps: Math.round(Number(fd.get("tax") || 0) * 100),
-        allow_lan: fd.get("allow_lan") === "on",
-        credit_days: Number(fd.get("credit_days") || 30),
-        ...(String(fd.get("invoice_prefix") || "").trim()
-          ? { invoice_prefix: String(fd.get("invoice_prefix") || "").trim() }
-          : {}),
-        ...(String(fd.get("po_prefix") || "").trim() ? { po_prefix: String(fd.get("po_prefix") || "").trim() } : {}),
-      }),
-    });
-    setS(next);
-    setSaved(true);
+    try {
+      await flash.run(async () => {
+        const next = await api<Settings>("/api/settings", {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: fd.get("name"),
+            address: fd.get("address"),
+            phone: fd.get("phone"),
+            currency_symbol: "Rp",
+            currency_code: "IDR",
+            tax_rate_bps: Math.round(Number(fd.get("tax") || 0) * 100),
+            allow_lan: fd.get("allow_lan") === "on",
+            credit_days: Number(fd.get("credit_days") || 30),
+            ...(String(fd.get("invoice_prefix") || "").trim()
+              ? { invoice_prefix: String(fd.get("invoice_prefix") || "").trim() }
+              : {}),
+            ...(String(fd.get("po_prefix") || "").trim() ? { po_prefix: String(fd.get("po_prefix") || "").trim() } : {}),
+          }),
+        });
+        setS(next);
+        setSaved(true);
+      });
+    } catch {
+      setSaved(false);
+    }
   }
   return (
     <div className="grid">
@@ -615,10 +625,10 @@ export function OpSettings() {
           {t("allowLan")}
         </label>
         <p className="muted">{t("allowLanHint")}</p>
-        <button className="btn" type="submit">
-          {t("save")}
+        <button className={`btn ${flash.className}`} type="submit" disabled={flash.busy}>
+          {flash.busy ? t("saving") : flash.done || saved ? t("saved") : t("save")}
         </button>
-        {saved && <span className="muted">{t("saved")}</span>}
+        {saved && !flash.done ? <span className="muted">{t("saved")}</span> : null}
       </form>
       <CatalogAdmin />
       <div className="card form-grid">

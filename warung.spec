@@ -142,9 +142,9 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": APP_NAME,
             "CFBundleDisplayName": APP_NAME,
-            "CFBundleShortVersionString": "1.3.0",
-            "CFBundleVersion": "1.3.0",
-            "CFBundleGetInfoString": "Toko Bangunan Makmur 1.3.0",
+            "CFBundleShortVersionString": "1.4.0",
+            "CFBundleVersion": "1.4.0",
+            "CFBundleGetInfoString": "Toko Bangunan Makmur 1.4.0",
             "NSHumanReadableCopyright": "Toko Bangunan Makmur",
             "NSHighResolutionCapable": True,
             "NSSupportsAutomaticGraphicsSwitching": True,

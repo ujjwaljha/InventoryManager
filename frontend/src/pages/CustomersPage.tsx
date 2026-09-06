@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
-import { PageHeader, StatusTag } from "../components/ui";
+import { PageHeader, StatusTag, useFlashAction } from "../components/ui";
 import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { money, when } from "../money";
@@ -81,6 +81,7 @@ export function CustomerDetailPage() {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const saveFlash = useFlashAction();
 
   async function load() {
     const row = await api<CustomerDetail>(`/api/shoppers/${id}`);
@@ -99,15 +100,17 @@ export function CustomerDetailPage() {
     setNote("");
     setBusy(true);
     try {
-      const row = await api<CustomerDetail>(`/api/shoppers/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name, phone, email }),
+      await saveFlash.run(async () => {
+        const row = await api<CustomerDetail>(`/api/shoppers/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name, phone, email }),
+        });
+        setCustomer({ ...row, invoices: customer?.invoices });
+        setName(row.name);
+        setPhone(row.phone);
+        setEmail(row.email || "");
+        setNote(t("customerSaved"));
       });
-      setCustomer({ ...row, invoices: customer?.invoices });
-      setName(row.name);
-      setPhone(row.phone);
-      setEmail(row.email || "");
-      setNote(t("customerSaved"));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) setError(t("phoneInUse"));
       else setError(e instanceof Error ? e.message : t("updateFailed"));
@@ -158,8 +161,8 @@ export function CustomerDetailPage() {
           <input value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <div className="row">
-          <button className="btn" type="submit" disabled={busy}>
-            {t("save")}
+          <button className={`btn ${saveFlash.className}`} type="submit" disabled={busy || saveFlash.busy}>
+            {saveFlash.busy ? t("saving") : saveFlash.done ? t("saved") : t("save")}
           </button>
           <Link className="btn ghost" to={`/reports?shopper_id=${customer.id}`}>
             {t("customerReport")}

@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { ItemPicker, PageHeader, StatusTag, SupplierPicker } from "../components/ui";
+import { ItemPicker, PageHeader, StatusTag, SupplierPicker, useFlashAction } from "../components/ui";
 import { ResultList } from "../components/Finder";
 import { useI18n } from "../i18n";
 import { centsFromRupiah, formatQty, money, qtyStep, when } from "../money";
@@ -127,6 +127,7 @@ export function RestockDetail() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const saveFlash = useFlashAction();
   const [supplier, setSupplier] = useState<SupplierChoice>({ value: "", name: "", phone: "" });
 
   async function load() {
@@ -191,12 +192,14 @@ export function RestockDetail() {
       return;
     }
     try {
-      setRow(
-        await api<Restock>(`/api/restocks/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(restockBody(supplier, note)),
-        }),
-      );
+      await saveFlash.run(async () => {
+        setRow(
+          await api<Restock>(`/api/restocks/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(restockBody(supplier, note)),
+          }),
+        );
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("updateFailed"));
     }
@@ -276,8 +279,8 @@ export function RestockDetail() {
             {t("notes")}
             <input value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
-          <button className="btn ghost" type="submit">
-            {t("save")}
+          <button className={`btn ghost ${saveFlash.className}`} type="submit" disabled={saveFlash.busy}>
+            {saveFlash.busy ? t("saving") : saveFlash.done ? t("saved") : t("save")}
           </button>
         </form>
       ) : (
