@@ -469,3 +469,92 @@ def test_open_cart_keeps_line_price_when_catalog_changes(client: TestClient):
     assert reprint["lines"][0]["unit_price_cents"] == old_price
     assert reprint["total_cents"] == invoice["total_cents"]
 
+
+def test_till_sale_stores_cash_received_and_change(client: TestClient):
+    nails = next(i for i in client.get("/api/items").json() if i["sku"] == "NAL-1")
+    res = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Pak Cash",
+            "customer_phone": "081377700091",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": True,
+            "cash_received_cents": nails["unit_price_cents"] + 3_500_000,
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["cash_received_cents"] == nails["unit_price_cents"] + 3_500_000
+    assert body["change_cents"] == 3_500_000
+    reprint = client.get(f"/api/invoices/{body['id']}").json()
+    assert reprint["cash_received_cents"] == body["cash_received_cents"]
+    assert reprint["change_cents"] == 3_500_000
+
+
+def test_till_sale_rejects_short_cash(client: TestClient):
+    nails = next(i for i in client.get("/api/items").json() if i["sku"] == "NAL-1")
+    res = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Bu Short",
+            "customer_phone": "081377700092",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": True,
+            "cash_received_cents": 100,
+        },
+    )
+    assert res.status_code == 400, res.text
+    assert "Cash received" in res.json()["detail"]
+
+
+def test_credit_sale_does_not_store_cash_received(client: TestClient):
+    nails = next(i for i in client.get("/api/items").json() if i["sku"] == "NAL-1")
+    res = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Pak Bon",
+            "customer_phone": "081377700093",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": False,
+            "cash_received_cents": 10_000_000,
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["cash_received_cents"] is None
+    assert res.json()["change_cents"] == 0
+
+
+def test_paid_sale_without_cash_is_exact(client: TestClient):
+    nails = next(i for i in client.get("/api/items").json() if i["sku"] == "NAL-1")
+    res = client.post(
+        "/api/sales",
+        json={
+            "salesperson_name": "Andi",
+            "customer_name": "Bu Pas",
+            "customer_phone": "081377700094",
+            "lines": [{"item_id": nails["id"], "quantity": 1}],
+            "paid": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["cash_received_cents"] == body["total_cents"]
+    assert body["change_cents"] == 0
+
+
+def test_shop_place_stores_cash_received(client: TestClient):
+    nails = next(i for i in client.get("/api/shop/catalog").json() if i["sku"] == "NAL-1")
+    client.post("/api/shop/session", json={"name": "Shop Cash", "phone": "9000000099"})
+    client.post("/api/shop/po/lines", json={"item_id": nails["id"], "quantity": 1})
+    placed = client.post(
+        "/api/shop/po/place",
+        json={"note": "", "paid": True, "cash_received_cents": nails["unit_price_cents"] + 2_000_000},
+    )
+    assert placed.status_code == 200, placed.text
+    inv = placed.json()["invoice"]
+    assert inv["cash_received_cents"] == nails["unit_price_cents"] + 2_000_000
+    assert inv["change_cents"] == 2_000_000
+

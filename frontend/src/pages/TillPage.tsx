@@ -5,7 +5,7 @@ import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/Car
 import { CashTender, CustomerPicker, ItemPicker, PageHeader, SalesAgentSelect } from "../components/ui";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
-import { cashIsShort, formatQty, money, nudgeQty, qtyMoney } from "../money";
+import { cashIsShort, formatQty, money, nudgeQty, qtyMoney, tenderedCents } from "../money";
 import type { Item, Shortage } from "../types";
 
 type Line = { item: Item; quantity: number };
@@ -134,6 +134,7 @@ export function TillPage() {
           customer_phone: phone,
           lines: lines.map((ln) => ({ item_id: ln.item.id, quantity: ln.quantity })),
           paid: paidNow,
+          cash_received_cents: paidNow ? tenderedCents(total, cashRaw) : null,
         }),
       });
       try {

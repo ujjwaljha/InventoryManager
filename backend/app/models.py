@@ -223,6 +223,7 @@ class Invoice(Base):
     shop_phone: Mapped[str] = mapped_column(Text, nullable=False)
     currency_symbol: Mapped[str] = mapped_column(Text, default="Rp")
     salesperson_name: Mapped[str] = mapped_column(Text, default="")
+    cash_received_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     issued_at: Mapped[str] = mapped_column(Text, nullable=False)
     paid_at: Mapped[str | None] = mapped_column(Text)
     voided_at: Mapped[str | None] = mapped_column(Text)

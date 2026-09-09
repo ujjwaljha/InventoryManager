@@ -154,6 +154,7 @@ class PlaceIn(BaseModel):
     note: str = ""
     salesperson_name: str = ""
     paid: bool = True
+    cash_received_cents: int | None = None
 
 
 class InvoiceLineOut(BaseModel):
@@ -194,6 +195,8 @@ class InvoiceOut(BaseModel):
     due_date: str | None = None
     amount_paid_cents: int = 0
     balance_cents: int = 0
+    cash_received_cents: int | None = None
+    change_cents: int = 0
     lines: list[InvoiceLineOut]
 
 
@@ -359,6 +362,7 @@ class TillSaleIn(BaseModel):
     customer_phone: str = Field(min_length=6)
     note: str = ""
     paid: bool = False
+    cash_received_cents: int | None = None
     lines: list[OfficeLineIn]
 
 

@@ -481,6 +481,18 @@ def cancel_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
     return loaded
 
 
+def record_cash_tender(invoice: Invoice, *, paid: bool, cash_received_cents: int | None) -> Invoice:
+    """Remember till cash so the receipt can print tunai and kembalian."""
+    if not paid:
+        invoice.cash_received_cents = None
+        return invoice
+    received = invoice.total_cents if cash_received_cents is None else int(cash_received_cents)
+    if received < invoice.total_cents:
+        raise CheckoutError("Cash received is less than the total")
+    invoice.cash_received_cents = received
+    return invoice
+
+
 def paid_cents(invoice: Invoice) -> int:
     return sum(p.amount_cents for p in (invoice.payments or []))
 

@@ -255,6 +255,7 @@ def till_sale(body: TillSaleIn, db: Session = Depends(get_db)):
             lines=_merge_lines(body.lines),
             note=body.note,
             paid=body.paid,
+            cash_received_cents=body.cash_received_cents,
         )
         db.commit()
         return invoice_out(invoice)

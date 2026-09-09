@@ -70,6 +70,7 @@ def init_db(engine: Engine) -> None:
             )
         )
         _add_column_if_missing(conn, "invoices", "salesperson_name", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "invoices", "cash_received_cents", "INTEGER")
         _add_column_if_missing(conn, "invoices", "cogs_cents", "INTEGER NOT NULL DEFAULT 0")
         _add_column_if_missing(conn, "stock_movements", "purpose", "TEXT NOT NULL DEFAULT ''")
         _add_column_if_missing(conn, "stock_movements", "cogs_cents", "INTEGER NOT NULL DEFAULT 0")

@@ -6,7 +6,7 @@ import { CashTender, IdentifyForm, PageHeader, SalesAgentSelect } from "../compo
 import { ResultList } from "../components/Finder";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
-import { cashIsShort, formatQty, money, qtyStep, unitLabel } from "../money";
+import { cashIsShort, formatQty, money, qtyStep, tenderedCents, unitLabel } from "../money";
 import { matchScannedCode, shortScanCode } from "../sku";
 import type { Item, PoLine, PurchaseOrder, Shopper, Shortage } from "../types";
 
@@ -374,7 +374,12 @@ export function ShopCart({
     try {
       const placed = await api<PurchaseOrder>("/api/shop/po/place", {
         method: "POST",
-        body: JSON.stringify({ note, paid: paidNow, salesperson_name: salesperson || "" }),
+        body: JSON.stringify({
+          note,
+          paid: paidNow,
+          salesperson_name: salesperson || "",
+          cash_received_cents: paidNow ? tenderedCents(po.total_cents, cashRaw) : null,
+        }),
       });
       setCashRaw("");
       onCartChange();

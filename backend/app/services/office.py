@@ -329,6 +329,7 @@ def till_sale(
     lines: list[tuple[int, int]],
     note: str = "",
     paid: bool = False,
+    cash_received_cents: int | None = None,
 ):
     """Create a draft PO, add lines at sell price, place it, optionally mark paid.
 
@@ -346,4 +347,5 @@ def till_sale(
     po, invoice = chk.place_order(db, po, note=note, salesperson_name=salesperson_name)
     if paid:
         invoice = chk.mark_paid(db, invoice)
+    chk.record_cash_tender(invoice, paid=paid, cash_received_cents=cash_received_cents)
     return po, invoice

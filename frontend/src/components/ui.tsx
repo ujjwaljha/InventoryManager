@@ -119,6 +119,16 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
         <h2 style={{ margin: "8px 0 0" }}>
           {t("total")} {money(invoice.total_cents, invoice.currency_symbol)}
         </h2>
+        {typeof invoice.cash_received_cents === "number" ? (
+          <>
+            <div className="muted">
+              {t("cashReceived")} {money(invoice.cash_received_cents, invoice.currency_symbol)}
+            </div>
+            <div>
+              {t("changeDue")} {money(invoice.change_cents ?? invoice.cash_received_cents - invoice.total_cents, invoice.currency_symbol)}
+            </div>
+          </>
+        ) : null}
       </div>
     </article>
   );
@@ -190,6 +200,18 @@ export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
         <span>{t("total")}</span>
         <span>{money(invoice.total_cents, invoice.currency_symbol)}</span>
       </div>
+      {typeof invoice.cash_received_cents === "number" ? (
+        <>
+          <div className="thermal-line">
+            <span>{t("cashReceived")}</span>
+            <span>{money(invoice.cash_received_cents, invoice.currency_symbol)}</span>
+          </div>
+          <div className="thermal-line">
+            <span>{t("changeDue")}</span>
+            <span>{money(invoice.change_cents ?? invoice.cash_received_cents - invoice.total_cents, invoice.currency_symbol)}</span>
+          </div>
+        </>
+      ) : null}
       <hr className="thermal-dash" />
       <p className="thermal-head">{t("thankYou")}</p>
     </article>
