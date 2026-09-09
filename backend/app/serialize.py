@@ -109,6 +109,12 @@ def invoice_out(inv: Invoice) -> InvoiceOut:
         due_date=getattr(inv, "due_date", None),
         amount_paid_cents=paid_cents(inv),
         balance_cents=balance_cents(inv),
+        cash_received_cents=getattr(inv, "cash_received_cents", None),
+        change_cents=(
+            int(inv.cash_received_cents) - inv.total_cents
+            if getattr(inv, "cash_received_cents", None) is not None
+            else 0
+        ),
         lines=[
             InvoiceLineOut(
                 id=ln.id,

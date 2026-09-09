@@ -37,6 +37,12 @@ export function receiptPlainText(
     lines.push(`${t("tax")} ${(invoice.tax_bps / 100).toFixed(2)}%  ${money(invoice.tax_cents, invoice.currency_symbol)}`);
   }
   lines.push(`${t("total")}  ${money(invoice.total_cents, invoice.currency_symbol)}`);
+  if (typeof invoice.cash_received_cents === "number") {
+    lines.push(`${t("cashReceived")}  ${money(invoice.cash_received_cents, invoice.currency_symbol)}`);
+    lines.push(
+      `${t("changeDue")}  ${money(invoice.change_cents ?? invoice.cash_received_cents - invoice.total_cents, invoice.currency_symbol)}`,
+    );
+  }
   lines.push(DASH);
   lines.push(t("thankYou"));
   return lines.join("\n");

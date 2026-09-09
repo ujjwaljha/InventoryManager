@@ -86,6 +86,8 @@ textarea {
   padding: 10px 12px;
   background: #fff;
   color: var(--ink);
+  min-width: 0;
+  max-width: 100%;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -108,6 +110,11 @@ textarea:focus-visible,
   max-width: 1120px;
   margin: 0 auto;
   padding: 16px 16px var(--bottom);
+  min-width: 0;
+}
+
+.main-pane {
+  min-width: 0;
 }
 
 .topbar {
@@ -169,8 +176,8 @@ textarea:focus-visible,
 }
 
 .card.row .price {
-  flex: 0 0 auto;
-  max-width: none;
+  flex: 0 1 auto;
+  max-width: 46%;
 }
 
 .split {
@@ -191,10 +198,10 @@ textarea:focus-visible,
 }
 
 .split-amount {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 48%;
   text-align: right;
-  white-space: nowrap;
-  min-width: max-content;
 }
 
 .finder-filters {
@@ -243,7 +250,7 @@ textarea:focus-visible,
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -256,15 +263,15 @@ textarea:focus-visible,
 }
 
 .kpi {
-  min-width: 140px;
+  container-type: inline-size;
+  min-width: 0;
   flex: 1 1 140px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 18px;
-  padding-bottom: 16px;
+  padding: 14px 12px 18px;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -275,15 +282,16 @@ textarea:focus-visible,
 .kpi b {
   display: block;
   font-family: var(--sans);
-  font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+  font-size: clamp(0.82rem, 7.2cqi, 1.22rem);
   font-weight: 700;
   letter-spacing: -0.03em;
   text-transform: none;
   color: var(--ink);
   line-height: 1.2;
   margin-top: auto;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
   font-variant-numeric: tabular-nums;
 }
 
@@ -299,7 +307,7 @@ a.kpi:hover {
 }
 
 .kpi-grid.wide {
-  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(138px, 100%), 1fr));
 }
 
 .kpi-grid .kpi {
@@ -333,14 +341,16 @@ a.kpi:hover {
 
 .price {
   font-family: var(--sans);
-  font-size: 1.2rem;
+  font-size: clamp(0.92rem, 2.4vw, 1.15rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   text-align: right;
-  flex-shrink: 0;
-  white-space: nowrap;
-  min-width: max-content;
+  line-height: 1.15;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  overflow-wrap: break-word;
 }
 
 .stock {
@@ -478,6 +488,7 @@ a.kpi:hover {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .add-btn {
@@ -754,6 +765,7 @@ a.kpi:hover {
   border-radius: 999px;
   padding: 6px 12px;
   white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   color: var(--ink-soft);
   transition: transform 0.1s ease, background 0.12s ease, border-color 0.12s ease;
@@ -776,6 +788,14 @@ a.kpi:hover {
   gap: 8px;
   max-height: 132px;
   overflow-y: auto;
+}
+
+.customer-matches .chip {
+  max-width: 100%;
+  flex-shrink: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .customer-filter {
@@ -872,6 +892,7 @@ td {
   padding: 11px 10px;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 th {
@@ -968,8 +989,11 @@ tbody tr:hover {
 }
 
 .thermal-line > span:last-child {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 58%;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .thermal-item {
@@ -1017,10 +1041,27 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+.invoice-sheet table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.invoice-sheet td:last-child,
+.invoice-sheet th:last-child {
+  text-align: right;
+}
+
 .stepper {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.stepper b {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .share-row {
@@ -1157,12 +1198,32 @@ tbody tr:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+
+.cart-pane-line-copy {
+  min-width: 0;
+}
+
+.cart-pane-line-copy .price {
+  text-align: left;
+  font-size: 1.05rem;
 }
 
 .cart-pane-foot {
   border-top: 1px solid var(--line);
   padding: 12px 14px 14px;
   background: var(--paper);
+}
+
+.cart-pane-foot .row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.cart-pane-foot .price {
+  min-width: 0;
+  max-width: 70%;
 }
 
 @media (max-width: 859px) {
@@ -1175,6 +1236,13 @@ tbody tr:hover {
     background: rgba(28, 23, 19, 0.28);
     z-index: 27;
     cursor: pointer;
+  }
+}
+
+@media (max-width: 859px) {
+  .shop-with-cart,
+  .till-with-cart {
+    padding-bottom: 52px;
   }
 }
 
@@ -1291,6 +1359,7 @@ tbody tr:hover {
   .main-pane {
     padding: 28px 32px 48px;
     max-width: 1200px;
+    min-width: 0;
   }
 }
 
@@ -1394,6 +1463,7 @@ html.desktop-app .side > .main-pane > .topbar {
 html.desktop-app .main-pane {
   padding: 28px 32px 32px;
   max-width: 1200px;
+  min-width: 0;
 }
 
 .page-header {
@@ -1408,6 +1478,8 @@ html.desktop-app .main-pane {
 
 .page-header h2 {
   margin: 2px 0 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .page-hint {
@@ -1454,6 +1526,22 @@ html.desktop-app .main-pane {
   font-size: 1.05rem;
   margin: 2px 0 6px;
   color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.product-card .row {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.product-card .row > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.product-card .price {
+  text-align: left;
 }
 
 .user-chip {
@@ -1514,6 +1602,12 @@ html.desktop-app .main-pane {
   gap: 12px;
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.list-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .list-row:last-child {
@@ -1624,6 +1718,7 @@ html.desktop-app .main-pane {
   border-bottom: 1px solid var(--line);
   color: inherit;
   text-decoration: none;
+  min-width: 0;
 }
 
 .result-row:last-child {
@@ -1640,7 +1735,9 @@ html.desktop-app .main-pane {
 }
 
 .result-row .price {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-width: 48%;
+  font-size: clamp(0.84rem, 3.1vw, 1.1rem);
 }
 
 a.result-row:hover,
@@ -1664,15 +1761,21 @@ button.result-row.is-pressed {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
+  gap: 8px 12px;
   padding-top: 4px;
   border-top: 1px solid var(--line);
   font-weight: 650;
+  min-width: 0;
+}
+
+.till-total > span {
+  min-width: 0;
 }
 
 .till-total .price {
-  font-size: 1.45rem;
+  font-size: clamp(1.05rem, 4vw, 1.4rem);
   text-align: right;
+  max-width: 70%;
 }
 
 .pay-toggle {
@@ -1692,6 +1795,41 @@ button.result-row.is-pressed {
   width: 18px;
   height: 18px;
   accent-color: var(--forest);
+}
+
+.cash-tender {
+  display: grid;
+  gap: 10px;
+}
+
+.cash-tender .chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.cash-tender .chip {
+  flex: 0 1 auto;
+}
+
+.tender-change {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 12px;
+  font-weight: 650;
+  min-width: 0;
+}
+
+.tender-change .price {
+  font-size: clamp(1rem, 3.6vw, 1.25rem);
+  color: var(--ok);
+  max-width: 70%;
+}
+
+.tender-short {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 650;
 }
 
 .item-hero {

@@ -153,6 +153,7 @@ def place(body: PlaceIn, request: Request, db: Session = Depends(get_db)):
         po, invoice = chk.place_order(db, po, note=body.note, salesperson_name=body.salesperson_name)
         if body.paid:
             invoice = chk.mark_paid(db, invoice)
+        chk.record_cash_tender(invoice, paid=body.paid, cash_received_cents=body.cash_received_cents)
         db.commit()
         po = chk.load_po(db, po.id)
         return po_out_with_settings(db, po)

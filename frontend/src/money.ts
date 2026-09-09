@@ -6,7 +6,7 @@ export function money(cents: number, _symbol = "Rp"): string {
     maximumFractionDigits: 0,
     minimumFractionDigits: 0,
   }).format(rupiah);
-  return `Rp\u00a0${formatted}`;
+  return `Rp ${formatted}`;
 }
 
 export function rupiahFromCents(cents: number): string {
@@ -17,6 +17,19 @@ export function centsFromRupiah(raw: string): number {
   const n = Number(String(raw).replace(/[^\d-]/g, ""));
   if (!Number.isFinite(n)) return 0;
   return Math.round(n * 100);
+}
+
+/** Blank cash field means the customer paid the total exactly. */
+export function tenderedCents(totalCents: number, raw: string): number {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return Math.round(Number(totalCents) || 0);
+  return centsFromRupiah(raw);
+}
+
+export function cashIsShort(paidNow: boolean, totalCents: number, raw: string): boolean {
+  if (!paidNow) return false;
+  const due = Math.round(Number(totalCents) || 0);
+  return tenderedCents(due, raw) < due;
 }
 
 export function when(iso: string | null | undefined, locale: Lang = "id"): string {

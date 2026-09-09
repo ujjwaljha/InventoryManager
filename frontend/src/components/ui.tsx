@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { api } from "../api";
 import { ScanButton, type ScanResult } from "./BarcodeScanner";
 import { type MsgKey, useI18n } from "../i18n";
-import { formatQty, money, qtyStep, unitLabel, when, whenFull } from "../money";
+import { formatQty, money, qtyStep, rupiahFromCents, tenderedCents, unitLabel, when, whenFull } from "../money";
 import { receiptPlainText, shareReceipt } from "../receiptShare";
 import { matchScannedCode, shortScanCode } from "../sku";
 import type { Invoice, Item, Settings, Shopper, Supplier } from "../types";
@@ -119,6 +119,16 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
         <h2 style={{ margin: "8px 0 0" }}>
           {t("total")} {money(invoice.total_cents, invoice.currency_symbol)}
         </h2>
+        {typeof invoice.cash_received_cents === "number" ? (
+          <>
+            <div className="muted">
+              {t("cashReceived")} {money(invoice.cash_received_cents, invoice.currency_symbol)}
+            </div>
+            <div>
+              {t("changeDue")} {money(invoice.change_cents ?? invoice.cash_received_cents - invoice.total_cents, invoice.currency_symbol)}
+            </div>
+          </>
+        ) : null}
       </div>
     </article>
   );
@@ -190,6 +200,18 @@ export function ThermalReceipt({ invoice }: { invoice: Invoice }) {
         <span>{t("total")}</span>
         <span>{money(invoice.total_cents, invoice.currency_symbol)}</span>
       </div>
+      {typeof invoice.cash_received_cents === "number" ? (
+        <>
+          <div className="thermal-line">
+            <span>{t("cashReceived")}</span>
+            <span>{money(invoice.cash_received_cents, invoice.currency_symbol)}</span>
+          </div>
+          <div className="thermal-line">
+            <span>{t("changeDue")}</span>
+            <span>{money(invoice.change_cents ?? invoice.cash_received_cents - invoice.total_cents, invoice.currency_symbol)}</span>
+          </div>
+        </>
+      ) : null}
       <hr className="thermal-dash" />
       <p className="thermal-head">{t("thankYou")}</p>
     </article>
@@ -532,6 +554,73 @@ export function StatusTag({ status }: { status: string }) {
   const { t } = useI18n();
   const key = `status_${status}` as MsgKey;
   return <span className={`tag ${status}`}>{t(key)}</span>;
+}
+
+const TENDER_CHIPS = [50_000, 100_000];
+
+export function CashTender({
+  totalCents,
+  paidNow,
+  cashRaw,
+  onCashRaw,
+}: {
+  totalCents: number;
+  paidNow: boolean;
+  cashRaw: string;
+  onCashRaw: (v: string) => void;
+}) {
+  const { t } = useI18n();
+  if (!paidNow) return null;
+
+  const due = Math.round(Number(totalCents) || 0);
+  const received = tenderedCents(due, cashRaw);
+  const change = received - due;
+  const short = received < due;
+  const exactOn = received === due;
+
+  return (
+    <div className="cash-tender">
+      <label>
+        {t("cashReceived")}
+        <input
+          inputMode="numeric"
+          autoComplete="off"
+          name="cash-received"
+          value={cashRaw}
+          placeholder={rupiahFromCents(due)}
+          onChange={(e) => onCashRaw(e.currentTarget.value)}
+        />
+      </label>
+      <div className="chips">
+        <button type="button" className={`chip${exactOn ? " on" : ""}`} onClick={() => onCashRaw("")}>
+          {t("exactCash")}
+        </button>
+        {TENDER_CHIPS.map((rupiah) => {
+          const cents = rupiah * 100;
+          return (
+            <button
+              key={rupiah}
+              type="button"
+              className={`chip${received === cents ? " on" : ""}`}
+              onClick={() => onCashRaw(String(rupiah))}
+            >
+              {money(cents)}
+            </button>
+          );
+        })}
+      </div>
+      {short ? (
+        <p className="tender-short" role="status">
+          {t("shortCash", { amount: money(due - received) })}
+        </p>
+      ) : (
+        <div className="tender-change" role="status">
+          <span>{t("changeDue")}</span>
+          <div className="price">{money(change)}</div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SalesAgentSelect({

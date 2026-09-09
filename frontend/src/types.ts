@@ -112,6 +112,8 @@ export type Invoice = {
   overdue_days?: number;
   amount_paid_cents?: number;
   balance_cents?: number;
+  cash_received_cents?: number | null;
+  change_cents?: number;
   lines: InvoiceLine[];
 };
 
