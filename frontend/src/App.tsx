@@ -1,6 +1,6 @@
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthGate, useAuth } from "./auth";
-import { LanguageSwitch, useI18n } from "./i18n";
+import { LanguageSwitch, ThemeSwitch, useI18n } from "./i18n";
 import { api, ApiError } from "./api";
 import { OpNav, ShopNav } from "./components/ui";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "./components/CartPane";
@@ -148,6 +148,7 @@ function ShopShell() {
         </div>
         <div className="row" style={{ gap: 10 }}>
           <LanguageSwitch />
+          <ThemeSwitch />
           {user ? <span className="muted desktop-only">{user.display_name}</span> : null}
           <button className="btn ghost" type="button" onClick={() => logout()}>
             {t("logout")}
@@ -302,6 +303,7 @@ function OpShell() {
             {t("openShop")}
           </NavLink>
           <LanguageSwitch />
+          <ThemeSwitch />
           {user ? (
             <div className="user-chip">
               <span className="user-avatar">{(user.display_name || user.username).trim().charAt(0).toUpperCase()}</span>
@@ -320,6 +322,7 @@ function OpShell() {
           <Brand to="/" kicker={t("backOffice")} name={name} />
           <div className="row">
             <LanguageSwitch />
+            <ThemeSwitch />
             <button className="btn ghost" type="button" onClick={() => logout()}>
               {t("logout")}
             </button>

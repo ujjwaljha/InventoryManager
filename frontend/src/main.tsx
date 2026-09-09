@@ -6,7 +6,9 @@ import { installClickFeel } from "./clickFeel";
 import "./desktop";
 import { LocaleProvider } from "./i18n";
 import "./styles.css";
+import { installTheme } from "./theme";
 
+installTheme();
 installClickFeel();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

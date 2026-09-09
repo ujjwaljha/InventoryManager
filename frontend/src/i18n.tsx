@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { syncDesktopLocale } from "./desktop";
+import { readThemePref, writeThemePref, type ThemePref } from "./theme";
 
 export type Lang = "en" | "id";
 
@@ -424,6 +425,10 @@ const STRINGS = {
     addItems: "Add items",
     checkout: "Checkout",
     shopProfile: "Shop profile",
+    appearance: "Appearance",
+    themeSystem: "Auto",
+    themeLight: "Light",
+    themeDark: "Dark",
   },
   id: {
     shopNameFallback: "Toko Bangunan Makmur",
@@ -844,6 +849,10 @@ const STRINGS = {
     addItems: "Tambah barang",
     checkout: "Bayar",
     shopProfile: "Profil toko",
+    appearance: "Tampilan",
+    themeSystem: "Otomatis",
+    themeLight: "Terang",
+    themeDark: "Gelap",
   },
 } as const;
 
@@ -928,6 +937,28 @@ export function LanguageSwitch() {
       </button>
       <button type="button" className={locale === "id" ? "on" : ""} onClick={() => setLocale("id")}>
         ID
+      </button>
+    </div>
+  );
+}
+
+export function ThemeSwitch() {
+  const { t } = useI18n();
+  const [pref, setPref] = useState<ThemePref>(() => readThemePref());
+  function choose(next: ThemePref) {
+    writeThemePref(next);
+    setPref(next);
+  }
+  return (
+    <div className="lang-switch" role="group" aria-label={t("appearance")}>
+      <button type="button" className={pref === "system" ? "on" : ""} onClick={() => choose("system")}>
+        {t("themeSystem")}
+      </button>
+      <button type="button" className={pref === "light" ? "on" : ""} onClick={() => choose("light")}>
+        {t("themeLight")}
+      </button>
+      <button type="button" className={pref === "dark" ? "on" : ""} onClick={() => choose("dark")}>
+        {t("themeDark")}
       </button>
     </div>
   );

@@ -12,6 +12,15 @@
       rel="stylesheet"
     />
     <title>Toko Bangunan Makmur</title>
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem("im_theme") || "system";
+          var dark = p === "dark" || (p !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("theme-dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
