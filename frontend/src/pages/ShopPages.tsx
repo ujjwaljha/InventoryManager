@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { ScanButton } from "../components/BarcodeScanner";
-import { IdentifyForm, PageHeader, SalesAgentSelect } from "../components/ui";
+import { CashTender, IdentifyForm, PageHeader, SalesAgentSelect } from "../components/ui";
 import { ResultList } from "../components/Finder";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
-import { formatQty, money, qtyStep, unitLabel } from "../money";
+import { cashIsShort, formatQty, money, qtyStep, unitLabel } from "../money";
 import { matchScannedCode, shortScanCode } from "../sku";
 import type { Item, PoLine, PurchaseOrder, Shopper, Shortage } from "../types";
 
@@ -289,6 +289,7 @@ export function ShopCart({
   const [busy, setBusy] = useState(false);
   const [shortages, setShortages] = useState<Shortage[]>([]);
   const [paidNow, setPaidNow] = useState(true);
+  const [cashRaw, setCashRaw] = useState("");
   const [salesperson, setSalesperson] = useState<string | null>(() => {
     try {
       return localStorage.getItem("im_salesperson");
@@ -366,6 +367,7 @@ export function ShopCart({
   }
 
   async function place() {
+    if (!po || cashIsShort(paidNow, po.total_cents, cashRaw)) return;
     setBusy(true);
     setError("");
     setShortages([]);
@@ -374,6 +376,7 @@ export function ShopCart({
         method: "POST",
         body: JSON.stringify({ note, paid: paidNow, salesperson_name: salesperson || "" }),
       });
+      setCashRaw("");
       onCartChange();
       if (placed.invoice) navigate(`/shop/invoices/${placed.invoice.id}`);
     } catch (e) {
@@ -502,6 +505,7 @@ export function ShopCart({
           <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} />
           {paidNow ? t("paidNow") : t("creditSale")}
         </label>
+        <CashTender totalCents={po.total_cents} paidNow={paidNow} cashRaw={cashRaw} onCashRaw={setCashRaw} />
         <p className="muted" style={{ margin: 0 }}>
           {t("placeHint")}
         </p>
@@ -510,7 +514,7 @@ export function ShopCart({
             {t("trimToStock")}
           </button>
         )}
-        <button className="btn terra block" disabled={busy} onClick={place}>
+        <button className="btn terra block" disabled={busy || cashIsShort(paidNow, po.total_cents, cashRaw)} onClick={place}>
           {busy ? t("placing") : t("placeOrder")}
         </button>
       </div>

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { CartPane, readCartPaneOpen, writeCartPaneOpen } from "../components/CartPane";
-import { CustomerPicker, ItemPicker, PageHeader, SalesAgentSelect } from "../components/ui";
+import { CashTender, CustomerPicker, ItemPicker, PageHeader, SalesAgentSelect } from "../components/ui";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
-import { formatQty, money, nudgeQty, qtyMoney } from "../money";
+import { cashIsShort, formatQty, money, nudgeQty, qtyMoney } from "../money";
 import type { Item, Shortage } from "../types";
 
 type Line = { item: Item; quantity: number };
@@ -28,6 +28,7 @@ export function TillPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [paidNow, setPaidNow] = useState(true);
+  const [cashRaw, setCashRaw] = useState("");
   const [shortages, setShortages] = useState<Shortage[]>([]);
   const [cartOpen, setCartOpen] = useState(readCartPaneOpen);
 
@@ -41,6 +42,7 @@ export function TillPage() {
     setCustomer("");
     setPhone("");
     setPaidNow(true);
+    setCashRaw("");
     setError("");
     setShortages([]);
   }
@@ -119,6 +121,7 @@ export function TillPage() {
   }
 
   async function submit() {
+    if (cashIsShort(paidNow, total, cashRaw)) return;
     setError("");
     setShortages([]);
     setBusy(true);
@@ -202,7 +205,8 @@ export function TillPage() {
             <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.currentTarget.checked)} />
             {paidNow ? t("paidNow") : t("creditSale")}
           </label>
-          <button className="btn block" type="submit" disabled={busy || !lines.length}>
+          <CashTender totalCents={total} paidNow={paidNow} cashRaw={cashRaw} onCashRaw={setCashRaw} />
+          <button className="btn block" type="submit" disabled={busy || !lines.length || cashIsShort(paidNow, total, cashRaw)}>
             {t("completeSale")}
           </button>
         </form>

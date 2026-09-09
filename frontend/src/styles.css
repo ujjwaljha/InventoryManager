@@ -1694,6 +1694,35 @@ button.result-row.is-pressed {
   accent-color: var(--forest);
 }
 
+.cash-tender {
+  display: grid;
+  gap: 10px;
+}
+
+.cash-tender .chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.tender-change {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-weight: 650;
+}
+
+.tender-change .price {
+  font-size: 1.25rem;
+  color: var(--ok);
+}
+
+.tender-short {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 650;
+}
+
 .item-hero {
   display: flex;
   justify-content: space-between;
