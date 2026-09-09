@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "./api";
-import { LanguageSwitch, useI18n } from "./i18n";
+import { LanguageSwitch, ThemeSwitch, useI18n } from "./i18n";
 import type { StaffUser } from "./types";
 
 export type AuthStatus = {
@@ -125,7 +125,10 @@ function LoginForm({ shopName, onDone }: { shopName: string; onDone: () => Promi
               <h2>{t("loginRequired")}</h2>
             </div>
           </div>
-          <LanguageSwitch />
+          <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+            <LanguageSwitch />
+            <ThemeSwitch />
+          </div>
         </div>
         <p className="muted">{t("loginHint")}</p>
         {error && <div className="banner">{error}</div>}
@@ -187,7 +190,10 @@ function SetupForm({ shopName, onDone }: { shopName: string; onDone: () => Promi
               <h2>{t("setupAdmin")}</h2>
             </div>
           </div>
-          <LanguageSwitch />
+          <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+            <LanguageSwitch />
+            <ThemeSwitch />
+          </div>
         </div>
         <p className="muted">{t("setupHint")}</p>
         {error && <div className="banner">{error}</div>}
