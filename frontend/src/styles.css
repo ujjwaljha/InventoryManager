@@ -271,8 +271,7 @@ textarea:focus-visible,
   flex-direction: column;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 18px;
-  padding-bottom: 16px;
+  padding: 14px 12px 18px;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -283,7 +282,7 @@ textarea:focus-visible,
 .kpi b {
   display: block;
   font-family: var(--sans);
-  font-size: clamp(0.92rem, 9cqi, 1.35rem);
+  font-size: clamp(0.82rem, 7.2cqi, 1.22rem);
   font-weight: 700;
   letter-spacing: -0.03em;
   text-transform: none;
@@ -1238,6 +1237,13 @@ tbody tr:hover {
   }
 }
 
+@media (max-width: 859px) {
+  .shop-with-cart,
+  .till-with-cart {
+    padding-bottom: 52px;
+  }
+}
+
 @media (min-width: 860px) {
   .cart-pane {
     top: 80px;
@@ -1728,7 +1734,8 @@ html.desktop-app .main-pane {
 
 .result-row .price {
   flex: 0 1 auto;
-  max-width: 46%;
+  max-width: 48%;
+  font-size: clamp(0.84rem, 3.1vw, 1.1rem);
 }
 
 a.result-row:hover,
@@ -1796,6 +1803,10 @@ button.result-row.is-pressed {
 .cash-tender .chips {
   flex-wrap: wrap;
   overflow: visible;
+}
+
+.cash-tender .chip {
+  flex: 0 1 auto;
 }
 
 .tender-change {
