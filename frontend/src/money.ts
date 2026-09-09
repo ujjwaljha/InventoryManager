@@ -6,7 +6,7 @@ export function money(cents: number, _symbol = "Rp"): string {
     maximumFractionDigits: 0,
     minimumFractionDigits: 0,
   }).format(rupiah);
-  return `Rp\u00a0${formatted}`;
+  return `Rp ${formatted}`;
 }
 
 export function rupiahFromCents(cents: number): string {
